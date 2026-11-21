@@ -585,13 +585,8 @@ fun SwipeToQueueBox(
 @Composable
 private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState, armed: Boolean, destructive: Boolean) {
     val playNext by AppUi.host.swipeToPlayNext.collectAsStateWithLifecycle()
-    val primary = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    // The panel brightens as the swipe arms, so it says "let go now" itself.
-    val glow by animateFloatAsState(
-        targetValue = if (armed) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
-        label = "queueSwipeGlow",
-    )
+    // iOS: a flat, solid action panel (systemRed for destructive), no gradient.
+    val panel = if (destructive) Color(0xFFFF3B30) else MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -607,15 +602,8 @@ private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState, armed: Bool
                     }
                 }
             }
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        primary.copy(alpha = 0.16f + 0.14f * glow),
-                        primary.copy(alpha = 0.28f + 0.18f * glow),
-                    ),
-                ),
-            )
-            .padding(horizontal = PAGE_GUTTER),
+            .background(panel)
+            .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
         // One label, on the side the row is being pulled from: both at once
         // showed as a doubled icon as soon as the reveal was wide enough.
@@ -632,61 +620,37 @@ private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState, armed: Bool
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QueueSwipeLabel(playNext: Boolean, swipeState: SwipeToDismissBoxState, armed: Boolean, destructive: Boolean) {
-    val primary = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    // The badge pops when the swipe arms and fills solid, like a button
-    // pressed in.
-    val pop by animateFloatAsState(
+    // iOS: once the swipe passes the commit line, the label slides along with
+    // the row's edge instead of staying pinned to the far side.
+    val follow by animateFloatAsState(
         targetValue = if (armed) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.35f, stiffness = 500f),
-        label = "queueSwipePop",
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 380f),
+        label = "queueSwipeFollow",
     )
-    val iconTint by animateColorAsState(
-        targetValue = if (armed) {
-            if (destructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
-        } else {
-            primary
-        },
-        label = "queueSwipeIconTint",
-    )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        // Grows and fades in with the reveal instead of sitting there from the
-        // first pixel.
+    val towardStart = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
         modifier = Modifier.graphicsLayer {
             val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
-            val reach = (abs(offset) / 160.dp.toPx()).coerceIn(0f, 1f)
-            alpha = reach
-            scaleX = 0.7f + 0.3f * reach
-            scaleY = 0.7f + 0.3f * reach
+            val revealed = abs(offset)
+            alpha = (revealed / 48.dp.toPx()).coerceIn(0f, 1f)
+            val room = (revealed - size.width - 40.dp.toPx()).coerceAtLeast(0f)
+            translationX = (if (towardStart) -room else room) * follow
         },
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .padding(5.dp)
-                .graphicsLayer {
-                    val s = 1f + 0.16f * pop
-                    scaleX = s
-                    scaleY = s
-                }
-                .clip(CircleShape)
-                .background(primary.copy(alpha = 0.18f + 0.77f * pop)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = if (destructive) {
-                    Icons.Rounded.Delete
-                } else if (playNext) {
-                    ZenithIcons.PlayNext
-                } else {
-                    ZenithIcons.PlayLast
-                },
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        Spacer(Modifier.width(10.dp))
+        Icon(
+            imageVector = if (destructive) {
+                Icons.Rounded.Delete
+            } else if (playNext) {
+                ZenithIcons.PlayNext
+            } else {
+                ZenithIcons.PlayLast
+            },
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(22.dp),
+        )
         Text(
             text = stringResource(
                 if (destructive) {
@@ -697,9 +661,10 @@ private fun QueueSwipeLabel(playNext: Boolean, swipeState: SwipeToDismissBoxStat
                     Res.string.queue
                 },
             ),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = primary,
+            color = Color.White,
+            maxLines = 1,
         )
     }
 }
