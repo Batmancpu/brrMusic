@@ -74,7 +74,6 @@ import androidx.compose.ui.unit.sp
 import com.music.zenith.R
 import com.music.zenith.sharedui.resources.Res
 import com.music.zenith.sharedui.resources.ic_google_g
-import com.music.zenith.sharedui.resources.ic_logo
 import org.jetbrains.compose.resources.painterResource
 import com.music.zenith.ui.icons.ZenithIcons
 import com.music.zenith.ui.player.MeshGradientBackground
@@ -222,7 +221,7 @@ private fun ColumnScope.NamePage(
         Column {
             Spacer(Modifier.height(56.dp))
             Image(
-                painter = painterResource(Res.drawable.ic_logo),
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_logo),
                 contentDescription = null,
                 modifier = Modifier.size(width = 46.dp, height = 30.dp),
             )
