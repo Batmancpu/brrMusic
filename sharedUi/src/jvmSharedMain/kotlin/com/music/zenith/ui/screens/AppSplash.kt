@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 
@@ -34,8 +35,11 @@ private const val SPLASH_LOGO_TO_FONT = 0.83f
 
 private const val SPLASH_GAP_TO_FONT = 0.14f
 
-/** The icon's canvas as a share of the screen width; the squircle inside it fills two thirds. */
-private const val SPLASH_MARK_WIDTH_SHARE = 0.4f
+/**
+ * The icon's canvas, the size of the system splash's own (288dp inset by 10%), so
+ * the handoff from the system splash to this one does not resize the mark.
+ */
+private val SPLASH_MARK_SIZE = 230.dp
 
 /**
  * A full-screen splash in Apple Music's manner: a red gradient from a lighter
@@ -74,7 +78,7 @@ fun AppSplash(
         ) {
             val font = maxWidth * SPLASH_FONT_WIDTH_SHARE
             if (mark != null) {
-                mark(maxWidth * SPLASH_MARK_WIDTH_SHARE)
+                mark(SPLASH_MARK_SIZE)
             } else {
                 Wordmark(
                     logoHeight = font * SPLASH_LOGO_TO_FONT,
