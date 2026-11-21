@@ -676,18 +676,10 @@ private fun QueueSwipeLabel(playNext: Boolean, swipeState: SwipeToDismissBoxStat
         },
         label = "queueSwipeIconTint",
     )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        // Grows and fades in with the reveal instead of sitting there from the
-        // first pixel.
-        modifier = Modifier.graphicsLayer {
-            val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
-            val reach = (abs(offset) / 160.dp.toPx()).coerceIn(0f, 1f)
-            alpha = reach
-            scaleX = 0.7f + 0.3f * reach
-            scaleY = 0.7f + 0.3f * reach
-        },
-    ) {
+    // Swiping left reveals the panel from the right edge, so the badge sits on
+    // the right with the text to its left; swiping right keeps the original order.
+    val reversed = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+    val badge: @Composable () -> Unit = {
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -714,7 +706,8 @@ private fun QueueSwipeLabel(playNext: Boolean, swipeState: SwipeToDismissBoxStat
                 modifier = Modifier.size(18.dp),
             )
         }
-        Spacer(Modifier.width(10.dp))
+    }
+    val label: @Composable () -> Unit = {
         Text(
             text = stringResource(
                 if (destructive) {
@@ -729,6 +722,28 @@ private fun QueueSwipeLabel(playNext: Boolean, swipeState: SwipeToDismissBoxStat
             fontWeight = FontWeight.SemiBold,
             color = primary,
         )
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        // Grows and fades in with the reveal instead of sitting there from the
+        // first pixel.
+        modifier = Modifier.graphicsLayer {
+            val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+            val reach = (abs(offset) / 160.dp.toPx()).coerceIn(0f, 1f)
+            alpha = reach
+            scaleX = 0.7f + 0.3f * reach
+            scaleY = 0.7f + 0.3f * reach
+        },
+    ) {
+        if (reversed) {
+            label()
+            Spacer(Modifier.width(10.dp))
+            badge()
+        } else {
+            badge()
+            Spacer(Modifier.width(10.dp))
+            label()
+        }
     }
 }
 
