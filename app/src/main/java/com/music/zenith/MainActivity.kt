@@ -339,6 +339,8 @@ import com.music.zenith.data.model.TopPick
 import com.music.zenith.data.model.TopPickKind
 import com.music.zenith.data.model.TopPickMood
 import com.music.zenith.ui.screens.MoodGridPage
+import com.music.zenith.ui.screens.NewReleasesPage
+import com.music.zenith.ui.screens.ChartsPage
 import com.music.zenith.ui.player.NowPlayingScreen
 import com.music.zenith.ui.player.MusicVideoEngine
 import com.music.zenith.ui.player.PlayerSheetMotion
@@ -1120,6 +1122,9 @@ private fun ZenithApp(
     val exploreCharts by viewModel.exploreCharts.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
+    val newReleasesState by viewModel.newReleases.collectAsStateWithLifecycle()
+    val chartsPageState by viewModel.charts.collectAsStateWithLifecycle()
+    val chartsCountry by viewModel.chartCountry.collectAsStateWithLifecycle()
     val libraryState by viewModel.library.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val searchSource by viewModel.searchSource.collectAsStateWithLifecycle()
@@ -1486,6 +1491,8 @@ private fun ZenithApp(
     val historyListState = rememberLazyListState()
     val libraryShowAllGridState = rememberLazyGridState()
     val moodsGridState = rememberLazyGridState()
+    val newReleasesListState = rememberLazyListState()
+    val chartsListState = rememberLazyListState()
     val searchListState = rememberLazyListState()
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
@@ -3326,6 +3333,22 @@ private fun ZenithApp(
                     val pageDetailListState = remember(key) {
                         detailListStates.getOrPut(key) { LazyListState() }
                     }
+                    val onExploreShelfClick: (ShelfItem, String) -> Unit = { item, shelfTitle ->
+                        val song = shelfSong(item)
+                        val browseId = item.browseId
+                        when {
+                            song != null -> playRadio(
+                                song,
+                                QueueSource(shelfTitle, PlaybackSourceType.HOME),
+                            )
+                            browseId != null -> viewModel.openDetail(
+                                browseId = browseId,
+                                title = item.title,
+                                subtitle = item.subtitle,
+                                thumbnailUrl = item.thumbnailUrl,
+                            )
+                        }
+                    }
                     val pageContent: @Composable () -> Unit = {
                         if (pageRoute == AppRoute.History) {
                             HistoryScreen(
@@ -3365,6 +3388,32 @@ private fun ZenithApp(
                             MoodGridPage(
                                 gridState = moodsGridState,
                                 onClick = playMood,
+                                contentPadding = listPadding,
+                            )
+                        } else if (pageRoute == AppRoute.NewReleases) {
+                            NewReleasesPage(
+                                state = newReleasesState,
+                                listState = newReleasesListState,
+                                onLoad = { viewModel.loadNewReleases() },
+                                onRetry = { viewModel.loadNewReleases(force = true) },
+                                onShelfItemClick = onExploreShelfClick,
+                                onShelfItemLongPress = onShelfLongPress,
+                                currentSong = player.song,
+                                isPlaying = player.isPlaying,
+                                contentPadding = listPadding,
+                            )
+                        } else if (pageRoute == AppRoute.Charts) {
+                            ChartsPage(
+                                state = chartsPageState,
+                                country = chartsCountry,
+                                listState = chartsListState,
+                                onLoad = { viewModel.loadCharts() },
+                                onRetry = { viewModel.loadCharts(force = true) },
+                                onCountryChange = { viewModel.loadCharts(it) },
+                                onShelfItemClick = onExploreShelfClick,
+                                onShelfItemLongPress = onShelfLongPress,
+                                currentSong = player.song,
+                                isPlaying = player.isPlaying,
                                 contentPadding = listPadding,
                             )
                         } else if (pageRoute == AppRoute.Replay) {
@@ -3884,6 +3933,9 @@ private fun ZenithApp(
                                 },
                                 onShelfItemLongPress = onShelfLongPress,
                                 refreshing = MainViewModel.Feed.EXPLORE in refreshing,
+                                onNewReleases = { navigator.push(AppRoute.NewReleases) },
+                                onCharts = { navigator.push(AppRoute.Charts) },
+                                onMoods = { selectedTab = TAB_SEARCH },
                                 onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                                 pullState = explorePull,
                                 contentPadding = listPadding,
@@ -4337,6 +4389,8 @@ private fun ZenithApp(
                         is AppRoute.LibraryShowAll -> route.shelf.title
                         is AppRoute.ArtistShelf -> route.shelf.title
                         AppRoute.Moods -> stringResource(R.string.find_your_mood)
+                        AppRoute.NewReleases -> stringResource(R.string.shelf_new_releases)
+                        AppRoute.Charts -> "Charts"
                         AppRoute.AccountScrobbling -> stringResource(R.string.account_scrobbling)
                         AppRoute.Sources -> stringResource(R.string.sources)
                         AppRoute.ListenTogether -> stringResource(R.string.listen_together)

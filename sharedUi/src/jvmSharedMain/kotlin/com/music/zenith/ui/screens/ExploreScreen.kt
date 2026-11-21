@@ -89,6 +89,10 @@ fun ExploreScreen(
     onShelfItemLongPress: ((ShelfItem) -> Unit)? = null,
     currentSong: Song? = null,
     isPlaying: Boolean = false,
+    /** The cards that close the page; a card whose callback is null is left out. */
+    onNewReleases: (() -> Unit)? = null,
+    onCharts: (() -> Unit)? = null,
+    onMoods: (() -> Unit)? = null,
 ) {
     val editorial = remember(homeState) {
         val found = (homeState as? UiState.Success)?.data?.let { shelves ->
@@ -191,6 +195,15 @@ fun ExploreScreen(
                                 }
                             }
                         }
+                    }
+                }
+                if (onNewReleases != null || onCharts != null || onMoods != null) {
+                    item(key = "explore-shortcuts") {
+                        ExploreShortcuts(
+                            onNewReleases = onNewReleases,
+                            onCharts = onCharts,
+                            onMoods = onMoods,
+                        )
                     }
                 }
             }
