@@ -3119,6 +3119,7 @@ fun NowPlayingScreen(
                         continuous = true,
                         driftMillis = 20_000,
                         colorFadeMillis = 3_500,
+                        matchSeam = (fullBleedArt || canvasHero) && heroMode && !lyricsOpen && !queueOpen,
                         modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
                     )
                     // Sambungan tepi cover tetap tampil di lagu ber-canvas (canvasHero)

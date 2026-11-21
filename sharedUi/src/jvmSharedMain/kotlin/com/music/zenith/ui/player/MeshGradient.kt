@@ -126,18 +126,35 @@ fun MeshGradientBackground(
     /**
      * Holds the blobs where they are, without the settling drift that turning
      * [continuous] off would start. For a caller that stops the mesh for a
-     * while — a scroll, the player up over it — and picks it up again after.
+     * for a while — a scroll, the player up over it — and picks it up again after.
      */
     paused: Boolean = false,
+    /**
+     * The two low blobs take the colour of the cover's edge seam ([MeshPalette.edge],
+     * left half and right half) so the bottom of the mesh melts into it. Only for the
+     * full-bleed player; everywhere else the blobs keep their palette colours.
+     */
+    matchSeam: Boolean = false,
 ) {
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
 
     // Cover putih/pucat: warna dibuat kalem dan terang (abu kebiruan) seperti
     // Apple Music, bukan dipaksa gelap pekat yang bentrok dengan cover.
     val light = palette.light
-    val tuned = (palette.colors.ifEmpty { FallbackColors } + FallbackColors)
+    val tunedBase = (palette.colors.ifEmpty { FallbackColors } + FallbackColors)
         .take(4)
         .map { if (light) it.tunedLight() else it.tuned() }
+    // Blob 0 (low left) and blob 1 (low right) follow the seam colours.
+    val seamEdge = palette.edge
+    val tuned = if (matchSeam && seamEdge.size >= 2) {
+        val half = seamEdge.size / 2
+        listOf(
+            seamEdge.take(half).seamBlobColor(),
+            seamEdge.drop(half).seamBlobColor(),
+        ) + tunedBase.drop(2)
+    } else {
+        tunedBase
+    }
 
     // Each colour slot crossfades independently when the track (palette) changes,
     // unless "reduce animation" is on, in which case colours snap straight to target.
@@ -152,7 +169,7 @@ fun MeshGradientBackground(
         animateColorAsState(color, colorSpec, label = "meshColor$index").value
     }
     val baseColor by animateColorAsState(
-        if (light) tuned.first().dimmedLight() else tuned.first().dimmed(),
+        if (light) tunedBase.first().dimmedLight() else tunedBase.first().dimmed(),
         colorSpec,
         label = "meshBase",
     )
@@ -258,6 +275,16 @@ fun MeshGradientBackground(
 
 /** A blob's opacity at its centre. */
 private const val BLOB_ALPHA = 0.85f
+
+/** Average of a stretch of seam colours, used as one blob's colour. */
+private fun List<Color>.seamBlobColor(): Color {
+    val n = size.coerceAtLeast(1)
+    return Color(
+        red = sumOf { it.red.toDouble() }.toFloat() / n,
+        green = sumOf { it.green.toDouble() }.toFloat() / n,
+        blue = sumOf { it.blue.toDouble() }.toFloat() / n,
+    )
+}
 
 /** Share of near-white pixels from which a cover counts as a light one. */
 private const val LIGHT_COVER_SHARE = 0.55f
