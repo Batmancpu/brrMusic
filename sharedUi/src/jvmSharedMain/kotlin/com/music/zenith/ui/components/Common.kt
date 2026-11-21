@@ -595,16 +595,44 @@ private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState, armed: Bool
     Row(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer {
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+            }
             .drawWithContent {
                 val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+                val left: Float
+                val right: Float
                 if (offset > 0f) {
-                    clipRect(left = 0f, top = 0f, right = offset, bottom = size.height) {
-                        this@drawWithContent.drawContent()
-                    }
+                    left = 0f
+                    right = offset
                 } else if (offset < 0f) {
-                    clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
-                        this@drawWithContent.drawContent()
-                    }
+                    left = size.width + offset
+                    right = size.width
+                } else {
+                    return@drawWithContent
+                }
+                clipRect(left = left, top = 0f, right = right, bottom = size.height) {
+                    this@drawWithContent.drawContent()
+                }
+                // Fade both sides of the revealed panel out to transparent.
+                val width = right - left
+                if (width > 1f) {
+                    val fade = (48.dp.toPx() / width).coerceAtMost(0.5f)
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colorStops = arrayOf(
+                                0f to Color.Transparent,
+                                fade to Color.Black,
+                                (1f - fade) to Color.Black,
+                                1f to Color.Transparent,
+                            ),
+                            startX = left,
+                            endX = right,
+                        ),
+                        topLeft = Offset(left, 0f),
+                        size = Size(width, size.height),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
                 }
             }
             .background(
