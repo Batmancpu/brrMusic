@@ -326,7 +326,8 @@ private const val EDGE_BINS = 8
 private const val EDGE_ROWS_SHARE = 0.04f
 private const val EDGE_SIDE_SHARE = 0.08f
 private const val EDGE_MAX_LIGHTNESS = 0.52f
-private const val EDGE_MEAN_MIX = 0.35f
+private const val EDGE_MEAN_MIX = 0.5f
+private const val EDGE_BLUR_DP = 42f
 private const val EDGE_RISE_START = 0.55f
 private const val EDGE_DROP_SHARE = 0.34f
 private const val EDGE_TINT_MIX = 0.3f
@@ -442,7 +443,8 @@ fun CoverEdgeBackdrop(
     Canvas(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .blur(EDGE_BLUR_DP.dp),
     ) {
         val drawn = shown.value
         if (drawn.size < 2) return@Canvas
