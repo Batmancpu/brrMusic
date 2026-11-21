@@ -592,68 +592,93 @@ private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState, armed: Bool
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
         label = "queueSwipeGlow",
     )
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-            }
-            .drawWithContent {
-                val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
-                val left: Float
-                val right: Float
-                if (offset > 0f) {
-                    left = 0f
-                    right = offset
-                } else if (offset < 0f) {
-                    left = size.width + offset
-                    right = size.width
-                } else {
-                    return@drawWithContent
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Panel only: clipped to the revealed area and faded out at both edges.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
                 }
-                clipRect(left = left, top = 0f, right = right, bottom = size.height) {
-                    this@drawWithContent.drawContent()
-                }
-                // Fade both sides of the revealed panel out to transparent.
-                val width = right - left
-                if (width > 1f) {
-                    val fade = (48.dp.toPx() / width).coerceAtMost(0.5f)
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            colorStops = arrayOf(
-                                0f to Color.Transparent,
-                                fade to Color.Black,
-                                (1f - fade) to Color.Black,
-                                1f to Color.Transparent,
+                .drawWithContent {
+                    val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+                    val left: Float
+                    val right: Float
+                    if (offset > 0f) {
+                        left = 0f
+                        right = offset
+                    } else if (offset < 0f) {
+                        left = size.width + offset
+                        right = size.width
+                    } else {
+                        return@drawWithContent
+                    }
+                    clipRect(left = left, top = 0f, right = right, bottom = size.height) {
+                        this@drawWithContent.drawContent()
+                    }
+                    // Fade both sides of the revealed panel out to transparent.
+                    val width = right - left
+                    if (width > 1f) {
+                        val fade = (48.dp.toPx() / width).coerceAtMost(0.5f)
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0f to Color.Transparent,
+                                    fade to Color.Black,
+                                    (1f - fade) to Color.Black,
+                                    1f to Color.Transparent,
+                                ),
+                                startX = left,
+                                endX = right,
                             ),
-                            startX = left,
-                            endX = right,
-                        ),
-                        topLeft = Offset(left, 0f),
-                        size = Size(width, size.height),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
-                    )
+                            topLeft = Offset(left, 0f),
+                            size = Size(width, size.height),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                        )
+                    }
                 }
-            }
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        primary.copy(alpha = 0.16f + 0.14f * glow),
-                        primary.copy(alpha = 0.28f + 0.18f * glow),
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            primary.copy(alpha = 0.16f + 0.14f * glow),
+                            primary.copy(alpha = 0.28f + 0.18f * glow),
+                        ),
                     ),
                 ),
-            )
-            .padding(horizontal = PAGE_GUTTER),
-        verticalAlignment = Alignment.CenterVertically,
-        // One label, on the side the row is being pulled from: both at once
-        // showed as a doubled icon as soon as the reveal was wide enough.
-        horizontalArrangement = if (swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
-            Arrangement.End
-        } else {
-            Arrangement.Start
-        },
-    ) {
-        QueueSwipeLabel(playNext, swipeState, armed, destructive)
+        )
+        // Icon and label sit on top: clipped to the revealed area, never faded.
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawWithContent {
+                    val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+                    val left: Float
+                    val right: Float
+                    if (offset > 0f) {
+                        left = 0f
+                        right = offset
+                    } else if (offset < 0f) {
+                        left = size.width + offset
+                        right = size.width
+                    } else {
+                        return@drawWithContent
+                    }
+                    clipRect(left = left, top = 0f, right = right, bottom = size.height) {
+                        this@drawWithContent.drawContent()
+                    }
+                }
+                .padding(horizontal = PAGE_GUTTER),
+            verticalAlignment = Alignment.CenterVertically,
+            // One label, on the side the row is being pulled from: both at once
+            // showed as a doubled icon as soon as the reveal was wide enough.
+            horizontalArrangement = if (swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                Arrangement.End
+            } else {
+                Arrangement.Start
+            },
+        ) {
+            QueueSwipeLabel(playNext, swipeState, armed, destructive)
+        }
     }
 }
 
