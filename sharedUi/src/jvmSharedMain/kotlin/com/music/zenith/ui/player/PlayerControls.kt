@@ -592,30 +592,18 @@ internal fun TransportRow(
             haptic = Haptic.SkipPrevious,
             direction = -1,
         )
-        if (isLoading) {
-            // Same footprint as the play/pause target — a smaller box here
-            // would shunt everything below it on every load.
-            Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    color = Color.White,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(if (compact) 30.dp else 38.dp),
-                )
-            }
-        } else {
-            TransportGlyph(
-                icon = if (shownPlaying) Res.drawable.ic_player_pause else Res.drawable.ic_player_play,
-                altIcon = if (shownPlaying) Res.drawable.ic_player_play else Res.drawable.ic_player_pause,
-                contentDescription = stringResource(if (shownPlaying) Res.string.pause else Res.string.play),
-                size = playSize,
-                touchSize = playTouch,
-                onClick = {
-                    tapped = !shownPlaying
-                    onPlayPause()
-                },
-                haptic = if (shownPlaying) Haptic.Pause else Haptic.Resume,
-            )
-        }
+        TransportGlyph(
+            icon = if (shownPlaying) Res.drawable.ic_player_pause else Res.drawable.ic_player_play,
+            altIcon = if (shownPlaying) Res.drawable.ic_player_play else Res.drawable.ic_player_pause,
+            contentDescription = stringResource(if (shownPlaying) Res.string.pause else Res.string.play),
+            size = playSize,
+            touchSize = playTouch,
+            onClick = {
+                tapped = !shownPlaying
+                onPlayPause()
+            },
+            haptic = if (shownPlaying) Haptic.Pause else Haptic.Resume,
+        )
         TransportGlyph(
             icon = Res.drawable.ic_player_next,
             contentDescription = stringResource(Res.string.widget_next),
