@@ -429,15 +429,14 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         setContent {
-            AppSplash(
-                mark = { size ->
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_zenith_dark_glass_foreground),
-                        contentDescription = null,
-                        modifier = Modifier.size(size),
-                    )
-                },
-            )
+            AppSplash()
+            // The splash is drawn alone on the first frame; the app composes on the next.
+            var contentReady by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                androidx.compose.runtime.withFrameNanos { }
+                contentReady = true
+            }
+            if (!contentReady) return@setContent
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val appFont by AppSettings.appFont.collectAsStateWithLifecycle()
             val accentColor by AppSettings.accentColor.collectAsStateWithLifecycle()

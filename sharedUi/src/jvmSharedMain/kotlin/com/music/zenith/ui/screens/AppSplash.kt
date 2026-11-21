@@ -19,8 +19,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 
@@ -36,22 +34,13 @@ private const val SPLASH_LOGO_TO_FONT = 0.83f
 private const val SPLASH_GAP_TO_FONT = 0.14f
 
 /**
- * The icon's canvas, the size of the system splash's own (288dp inset by 10%), so
- * the handoff from the system splash to this one does not resize the mark.
- */
-private val SPLASH_MARK_SIZE = 230.dp
-
-/**
  * A full-screen splash in Apple Music's manner: a red gradient from a lighter
  * top to a deeper bottom, with the mark and its word centred in white. Drawn
  * above everything else on a cold start, then faded out; remembered across
  * recreation so a rotation does not bring it back.
  */
 @Composable
-fun AppSplash(
-    modifier: Modifier = Modifier,
-    mark: (@Composable (Dp) -> Unit)? = null,
-) {
+fun AppSplash(modifier: Modifier = Modifier) {
     var visible by rememberSaveable { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         if (visible) {
@@ -77,16 +66,12 @@ fun AppSplash(
             contentAlignment = Alignment.Center,
         ) {
             val font = maxWidth * SPLASH_FONT_WIDTH_SHARE
-            if (mark != null) {
-                mark(SPLASH_MARK_SIZE)
-            } else {
-                Wordmark(
-                    logoHeight = font * SPLASH_LOGO_TO_FONT,
-                    fontSize = with(LocalDensity.current) { font.toSp() },
-                    color = Color.White,
-                    gap = font * SPLASH_GAP_TO_FONT,
-                )
-            }
+            Wordmark(
+                logoHeight = font * SPLASH_LOGO_TO_FONT,
+                fontSize = with(LocalDensity.current) { font.toSp() },
+                color = Color.White,
+                gap = font * SPLASH_GAP_TO_FONT,
+            )
         }
     }
 }
