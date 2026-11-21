@@ -339,6 +339,7 @@ import com.music.zenith.data.model.TopPick
 import com.music.zenith.data.model.TopPickKind
 import com.music.zenith.data.model.TopPickMood
 import com.music.zenith.ui.screens.MoodGridPage
+import com.music.zenith.ui.screens.AppSplash
 import com.music.zenith.ui.screens.NewReleasesPage
 import com.music.zenith.ui.screens.ChartsPage
 import com.music.zenith.ui.player.NowPlayingScreen
@@ -428,6 +429,7 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         setContent {
+            AppSplash()
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val appFont by AppSettings.appFont.collectAsStateWithLifecycle()
             val accentColor by AppSettings.accentColor.collectAsStateWithLifecycle()
