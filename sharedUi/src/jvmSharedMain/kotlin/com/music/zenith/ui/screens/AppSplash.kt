@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,8 +38,8 @@ private const val SPLASH_LOGO_TO_FONT = 0.83f
 
 private const val SPLASH_GAP_TO_FONT = 0.14f
 
-/** The icon's canvas against the word's font size; the squircle inside it fills two thirds. */
-private const val SPLASH_MARK_TO_FONT = 2.2f
+/** The logo's height against the word's font size, as for the plain mark. */
+private const val SPLASH_MARK_TO_FONT = 0.83f
 
 /**
  * A full-screen splash in Apple Music's manner: a red gradient from a lighter
@@ -77,7 +78,10 @@ fun AppSplash(
         ) {
             val font = maxWidth * SPLASH_FONT_WIDTH_SHARE
             if (mark != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(font * SPLASH_GAP_TO_FONT),
+                ) {
                     mark(font * SPLASH_MARK_TO_FONT)
                     Text(
                         text = "Music",

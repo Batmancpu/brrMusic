@@ -434,10 +434,10 @@ class MainActivity : AppCompatActivity() {
                     androidx.compose.ui.viewinterop.AndroidView(
                         factory = { ctx ->
                             android.widget.ImageView(ctx).apply {
-                                setImageResource(R.drawable.ic_zenith_dark_glass_foreground)
+                                setImageResource(R.drawable.splash_logo_dark_glass)
                             }
                         },
-                        modifier = Modifier.size(size),
+                        modifier = Modifier.size(width = size * (738f / 488f), height = size),
                     )
                 },
             )
