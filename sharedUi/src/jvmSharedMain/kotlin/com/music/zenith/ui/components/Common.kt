@@ -45,7 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -467,6 +469,25 @@ fun SwipeToQueueBox(
     )
     swipeStateHolder.value = swipeState
 
+    // A removed row leaves composition mid-drag, which cancels the effect below
+    // that springs the pulled neighbours back. Flag it so a row still on screen
+    // does the spring-back instead.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (dragFlag[0]) {
+                dragFlag[0] = false
+                SwipeRubber.releaseTick++
+            }
+        }
+    }
+    val releaseTick = SwipeRubber.releaseTick
+    LaunchedEffect(releaseTick) {
+        if (releaseTick > 0 && (SwipeRubber.near.value != 0f || SwipeRubber.far.value != 0f)) {
+            launch { SwipeRubber.near.animateTo(0f, spring(dampingRatio = 0.4f, stiffness = 260f)) }
+            launch { SwipeRubber.far.animateTo(0f, spring(dampingRatio = 0.4f, stiffness = 200f)) }
+        }
+    }
+
     // The row reveals "Queue" from the first pixel of the drag, but it only
     // *commits* past 45% of the width — so without this the label is a promise
     // the finger can't check. One light tick at the crossing is the whole point:
@@ -691,6 +712,8 @@ private fun QueueSwipeLabel(playNext: Boolean, swipeState: SwipeToDismissBoxStat
 private object SwipeRubber {
     var sourceTop = 0f
     var sourceHeight = 0f
+    /** Bumped when a dragged row disappears (removed) before it could release the pull. */
+    var releaseTick by mutableIntStateOf(0)
     val near = Animatable(0f)
     val far = Animatable(0f)
 }
