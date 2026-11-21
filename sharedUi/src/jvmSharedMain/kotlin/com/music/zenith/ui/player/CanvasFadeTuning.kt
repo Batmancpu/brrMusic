@@ -176,20 +176,35 @@ internal data class ControlProfile(
  * Setelah nilai pas, salin lewat tombol Salin lalu jadikan default permanen.
  */
 internal object ControlLayoutTuning {
-    private val profiles = Array(4) { mutableStateOf(ControlProfile()) }
+    /**
+     * Nilai awal tiap profil, urutan sama dengan [index]: volume tampil/lirik tampil,
+     * volume tampil/lirik sembunyi, volume sembunyi/lirik tampil, volume sembunyi/lirik sembunyi.
+     */
+    private val DEFAULTS = arrayOf(
+        ControlProfile(transportTop = 24.10f),
+        ControlProfile(transportTop = 21.25f, volumeBottom = 18.82f),
+        ControlProfile(),
+        ControlProfile(),
+    )
+
+    private const val DEFAULT_TITLE_SEPARATE = true
+    private const val DEFAULT_ART_EXTRA_DP = 20.89f
+    private const val DEFAULT_TITLE_EXTRA_DP = 25f
+
+    private val profiles = Array(4) { mutableStateOf(DEFAULTS[it]) }
 
     /** null = ikuti Pengaturan; true/false = dipaksa dari panel debug. */
     val hideVolumeOverride = mutableStateOf<Boolean?>(null)
     val lyricStripOverride = mutableStateOf<Boolean?>(null)
 
     /** Judul & artis tidak lagi ikut aturan lirik atas bar; posisinya hanya dari setelan di bawah. */
-    val titleSeparateOn = mutableStateOf(false)
+    val titleSeparateOn = mutableStateOf(DEFAULT_TITLE_SEPARATE)
 
     /** Geser cover mode kartu (dp, + turun). */
-    val artExtraDp = mutableFloatStateOf(0f)
+    val artExtraDp = mutableFloatStateOf(DEFAULT_ART_EXTRA_DP)
 
     /** Geser judul & artis (dp, + turun). */
-    val titleExtraDp = mutableFloatStateOf(0f)
+    val titleExtraDp = mutableFloatStateOf(DEFAULT_TITLE_EXTRA_DP)
 
     private fun index(volumeHidden: Boolean, lyricStrip: Boolean): Int =
         (if (volumeHidden) 2 else 0) + (if (lyricStrip) 0 else 1)
@@ -207,14 +222,19 @@ internal object ControlLayoutTuning {
     }
 
     fun reset(volumeHidden: Boolean, lyricStrip: Boolean) {
-        profiles[index(volumeHidden, lyricStrip)].value = ControlProfile()
+        val i = index(volumeHidden, lyricStrip)
+        profiles[i].value = DEFAULTS[i]
     }
 
     fun resetAll() {
-        profiles.forEach { it.value = ControlProfile() }
-        titleSeparateOn.value = false
-        artExtraDp.floatValue = 0f
-        titleExtraDp.floatValue = 0f
+        DEFAULTS.forEachIndexed { i, p -> profiles[i].value = p }
+        resetTitle()
+    }
+
+    fun resetTitle() {
+        titleSeparateOn.value = DEFAULT_TITLE_SEPARATE
+        artExtraDp.floatValue = DEFAULT_ART_EXTRA_DP
+        titleExtraDp.floatValue = DEFAULT_TITLE_EXTRA_DP
     }
 
     fun clearOverrides() {
@@ -224,16 +244,14 @@ internal object ControlLayoutTuning {
 
     private fun safe(value: Float): Float = if (value.isFinite()) value else 0f
 
-    /** Judul terpisah dari lirik? Hanya berlaku selama mode debug aktif. */
-    fun titleSeparate(): Boolean = CanvasFadeTuning.unlocked.value && titleSeparateOn.value
+    /** Judul terpisah dari aturan lirik atas bar? */
+    fun titleSeparate(): Boolean = titleSeparateOn.value
 
-    /** Geser cover mode kartu. Nol saat mode debug mati. */
-    fun artExtra(): Dp =
-        if (CanvasFadeTuning.unlocked.value) safe(artExtraDp.floatValue).dp else 0.dp
+    /** Geser cover mode kartu. */
+    fun artExtra(): Dp = safe(artExtraDp.floatValue).dp
 
-    /** Geser judul & artis. Nol saat mode debug mati. */
-    fun titleExtra(): Dp =
-        if (CanvasFadeTuning.unlocked.value) safe(titleExtraDp.floatValue).dp else 0.dp
+    /** Geser judul & artis. */
+    fun titleExtra(): Dp = safe(titleExtraDp.floatValue).dp
 
     /** Jarak bawaan lama layout; patokan tetap agar cover tidak ikut berubah oleh setelan kontrol. */
     private val ORIGINAL = ControlProfile(
@@ -463,9 +481,7 @@ private fun DebugTunerPanel(
                     CanvasFadeTuning.reset()
                 } else {
                     ControlLayoutTuning.reset(hideVolume, lyricStrip)
-                    ControlLayoutTuning.titleSeparateOn.value = false
-                    ControlLayoutTuning.artExtraDp.floatValue = 0f
-                    ControlLayoutTuning.titleExtraDp.floatValue = 0f
+                    ControlLayoutTuning.resetTitle()
                 }
             }
             PanelChip(if (copied) "Tersalin" else "Salin") {
