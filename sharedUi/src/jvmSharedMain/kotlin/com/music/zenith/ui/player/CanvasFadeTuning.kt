@@ -187,10 +187,10 @@ internal object ControlLayoutTuning {
      * volume tampil/lirik sembunyi, volume sembunyi/lirik tampil, volume sembunyi/lirik sembunyi.
      */
     private val DEFAULTS = arrayOf(
-        ControlProfile(transportTop = 24.10f),
-        ControlProfile(transportTop = 21.25f, volumeBottom = 18.82f),
-        ControlProfile(),
-        ControlProfile(),
+        ControlProfile(transportTop = 24.10f, artExtra = 8.33f, titleExtra = 19.72f),
+        ControlProfile(transportTop = 21.25f, volumeBottom = 18.82f, artExtra = 20.89f, titleExtra = 41.11f),
+        ControlProfile(artExtra = -4.69f, titleExtra = 16.11f),
+        ControlProfile(artExtra = 20.89f, titleExtra = 44.72f),
     )
 
     private val profiles = Array(4) { mutableStateOf(DEFAULTS[it]) }
