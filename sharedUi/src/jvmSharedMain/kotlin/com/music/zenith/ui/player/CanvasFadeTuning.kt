@@ -235,6 +235,33 @@ internal object ControlLayoutTuning {
     fun titleExtra(): Dp =
         if (CanvasFadeTuning.unlocked.value) safe(titleExtraDp.floatValue).dp else 0.dp
 
+    /** Jarak bawaan lama layout; patokan tetap agar cover tidak ikut berubah oleh setelan kontrol. */
+    private val ORIGINAL = ControlProfile(
+        scrubTop = 0f,
+        transportTop = 28f,
+        transportBottom = 0f,
+        volumeTop = 8f,
+        volumeBottom = 12f,
+        volumeSlot = VOLUME_ROW_HEIGHT.value,
+        actionsTop = 0f,
+        bottomPad = 20f,
+    )
+
+    private fun deckTotal(p: ControlProfile, volumeHidden: Boolean): Float =
+        p.scrubTop + p.transportTop + p.transportBottom +
+            (if (volumeHidden) p.volumeSlot else p.volumeTop + p.volumeBottom) +
+            p.actionsTop + p.bottomPad
+
+    /**
+     * Selisih tinggi deck kontrol dibanding jarak bawaan lama. Ditambahkan kembali ke
+     * tinggi area cover supaya ukuran dan posisi cover serta judul tidak ikut berubah.
+     */
+    fun deckDelta(volumeHidden: Boolean, lyricStrip: Boolean): Dp {
+        val delta = deckTotal(profile(volumeHidden, lyricStrip), volumeHidden) -
+            deckTotal(ORIGINAL, volumeHidden)
+        return (if (delta.isFinite()) delta else 0f).dp
+    }
+
     /** Volume disembunyikan? Dipaksa panel debug hanya selama mode debug aktif. */
     fun hideVolume(setting: Boolean): Boolean =
         if (CanvasFadeTuning.unlocked.value) hideVolumeOverride.value ?: setting else setting
