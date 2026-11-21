@@ -6,7 +6,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +21,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 
@@ -33,6 +37,9 @@ private const val SPLASH_LOGO_TO_FONT = 0.83f
 
 private const val SPLASH_GAP_TO_FONT = 0.14f
 
+/** The icon's canvas against the word's font size; the squircle inside it fills two thirds. */
+private const val SPLASH_MARK_TO_FONT = 2.2f
+
 /**
  * A full-screen splash in Apple Music's manner: a red gradient from a lighter
  * top to a deeper bottom, with the mark and its word centred in white. Drawn
@@ -40,7 +47,10 @@ private const val SPLASH_GAP_TO_FONT = 0.14f
  * recreation so a rotation does not bring it back.
  */
 @Composable
-fun AppSplash(modifier: Modifier = Modifier) {
+fun AppSplash(
+    modifier: Modifier = Modifier,
+    mark: (@Composable (Dp) -> Unit)? = null,
+) {
     var visible by rememberSaveable { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         if (visible) {
@@ -66,12 +76,25 @@ fun AppSplash(modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center,
         ) {
             val font = maxWidth * SPLASH_FONT_WIDTH_SHARE
-            Wordmark(
-                logoHeight = font * SPLASH_LOGO_TO_FONT,
-                fontSize = with(LocalDensity.current) { font.toSp() },
-                color = Color.White,
-                gap = font * SPLASH_GAP_TO_FONT,
-            )
+            if (mark != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    mark(font * SPLASH_MARK_TO_FONT)
+                    Text(
+                        text = "Music",
+                        color = Color.White,
+                        fontSize = with(LocalDensity.current) { font.toSp() },
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                }
+            } else {
+                Wordmark(
+                    logoHeight = font * SPLASH_LOGO_TO_FONT,
+                    fontSize = with(LocalDensity.current) { font.toSp() },
+                    color = Color.White,
+                    gap = font * SPLASH_GAP_TO_FONT,
+                )
+            }
         }
     }
 }

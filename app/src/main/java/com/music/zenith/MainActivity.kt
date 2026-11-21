@@ -429,7 +429,18 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         setContent {
-            AppSplash()
+            AppSplash(
+                mark = { size ->
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { ctx ->
+                            android.widget.ImageView(ctx).apply {
+                                setImageResource(R.drawable.ic_zenith_dark_glass_foreground)
+                            }
+                        },
+                        modifier = Modifier.size(size),
+                    )
+                },
+            )
             // The splash is drawn alone on the first frame; the app composes on the next.
             var contentReady by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(Unit) {
