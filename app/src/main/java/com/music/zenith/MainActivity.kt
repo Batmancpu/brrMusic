@@ -429,7 +429,15 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         setContent {
-            AppSplash()
+            AppSplash(
+                mark = { size ->
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_zenith_dark_glass_foreground),
+                        contentDescription = null,
+                        modifier = Modifier.size(size),
+                    )
+                },
+            )
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val appFont by AppSettings.appFont.collectAsStateWithLifecycle()
             val accentColor by AppSettings.accentColor.collectAsStateWithLifecycle()
