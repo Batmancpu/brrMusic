@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +25,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 
@@ -37,6 +39,9 @@ private const val SPLASH_FONT_WIDTH_SHARE = 0.1f
 private const val SPLASH_LOGO_TO_FONT = 0.83f
 
 private const val SPLASH_GAP_TO_FONT = 0.14f
+
+/** How far the mark sits below the screen's centre; centred content moves half of the top padding. */
+private val SPLASH_NUDGE_DOWN = 14.dp
 
 /** The logo's height against the word's font size, as for the plain mark. */
 private const val SPLASH_MARK_TO_FONT = 0.83f
@@ -73,7 +78,8 @@ fun AppSplash(
                     ),
                 )
                 // Nothing underneath should react while the splash is up.
-                .pointerInput(Unit) { detectTapGestures { } },
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(top = SPLASH_NUDGE_DOWN * 2),
             contentAlignment = Alignment.Center,
         ) {
             val font = maxWidth * SPLASH_FONT_WIDTH_SHARE
