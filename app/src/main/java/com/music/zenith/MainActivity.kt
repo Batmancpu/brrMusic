@@ -7090,7 +7090,7 @@ private fun ActionReveal(visible: Boolean, bounce: Boolean = false, content: @Co
         } else {
             fadeIn(tween(200)) + expandHorizontally(spring(dampingRatio = 1f, stiffness = 400f))
         },
-        exit = fadeOut(tween(140)) + shrinkHorizontally(spring(dampingRatio = 1f, stiffness = 400f)),
+        exit = fadeOut(tween(90)) + shrinkHorizontally(spring(dampingRatio = 1f, stiffness = 1400f)),
     ) {
         content()
     }
