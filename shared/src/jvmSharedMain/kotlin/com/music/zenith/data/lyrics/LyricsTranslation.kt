@@ -77,7 +77,10 @@ object LyricsTranslation {
     private const val MAX_PARALLEL_REQUESTS = 2
     // Input Tools changes ASCII digits to the destination script, so match the
     // private-use wrapper rather than assuming the counter remains ASCII.
-    private val markerRegex = Regex("\\uE000[^\\uE001]*\\uE001")
+    private val markerRegex = Regex("[\\uE000\\uE001][\\s\\u200E\\u200F\\u061C]*\\p{Nd}*[\\s\\u200E\\u200F\\u061C]*[\\uE000\\uE001]")
+    // Bidi marks that right-to-left targets such as Arabic wrap around a line.
+    private val edgeRegex = Regex("^[\\s\\u200E\\u200F\\u061C\\u202A-\\u202E\\u2066-\\u2069]+|[\\s\\u200E\\u200F\\u061C\\u202A-\\u202E\\u2066-\\u2069]+\\z")
+    private const val SINGLE_PARALLEL = 4
     private val json = Json { ignoreUnknownKeys = true }
     private val diskMutex = Mutex()
     private val memory = object {
@@ -336,17 +339,21 @@ object LyricsTranslation {
 
     private fun marker(index: Int): String = "\uE000${index.toString().padStart(4, '0')}\uE001"
 
-    private suspend fun requestBatch(
-        batch: Batch,
+    private class RawTranslation(val text: String, val source: String)
+
+    private fun cleanPart(text: String): String = text.replace(edgeRegex, "")
+
+    private suspend fun fetchTranslation(
+        payload: String,
         target: String,
-        sourceLanguage: String = "auto",
-    ): BatchAnswer? {
+        sourceLanguage: String,
+    ): RawTranslation? {
         val body = FormBody.Builder()
             .add("client", "dict-chrome-ex")
             .add("sl", sourceLanguage)
             .add("tl", target)
             .add("dt", "t")
-            .add("q", batch.payload)
+            .add("q", payload)
             .build()
         val request = Request.Builder()
             .url(ENDPOINT)
@@ -363,14 +370,44 @@ object LyricsTranslation {
         }
         return runCatching {
             val root = json.parseToJsonElement(response).jsonArray
-            val translatedBody = root[0].jsonArray.joinToString(separator = "") { segment ->
+            val text = root[0].jsonArray.joinToString(separator = "") { segment ->
                 segment.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull.orEmpty()
             }
-            val source = root.getOrNull(2)?.jsonPrimitive?.contentOrNull.orEmpty()
-            val parts = translatedBody.split(markerRegex).map(String::trim)
-            if (parts.size != batch.slots.size || parts.any { it.isBlank() }) return@runCatching null
-            BatchAnswer(parts, source, batch.payload.length)
+            RawTranslation(text, root.getOrNull(2)?.jsonPrimitive?.contentOrNull.orEmpty())
         }.getOrNull()
+    }
+
+    private suspend fun requestBatch(
+        batch: Batch,
+        target: String,
+        sourceLanguage: String = "auto",
+    ): BatchAnswer? {
+        val expected = batch.slots.size
+        val marked = fetchTranslation(batch.payload, target, sourceLanguage) ?: return null
+        marked.text.split(markerRegex).map { cleanPart(it) }
+            .takeIf { it.size == expected && it.none { part -> part.isBlank() } }
+            ?.let { return BatchAnswer(it, marked.source, batch.payload.length) }
+
+        // Right-to-left targets (Arabic) can reorder, space out or drop the
+        // private-use markers, so the part count no longer matches. Ask again
+        // with plain newlines, then line by line, rather than giving up.
+        val plain = batch.slots.joinToString("\n") { it.text.replace(Regex("\\s*\\n\\s*"), " ") }
+        val lined = fetchTranslation(plain, target, sourceLanguage) ?: return null
+        val source = marked.source.ifBlank { lined.source }
+        lined.text.trim('\n', '\r').split('\n').map { cleanPart(it) }
+            .takeIf { it.size == expected && it.none { part -> part.isBlank() } }
+            ?.let { return BatchAnswer(it, source, batch.payload.length) }
+
+        val single = coroutineScope {
+            batch.slots.chunked(SINGLE_PARALLEL).flatMap { group ->
+                group.map { slot -> async { fetchTranslation(slot.text, target, sourceLanguage) } }.awaitAll()
+            }
+        }
+        if (single.any { it == null }) return null
+        val parts = single.filterNotNull().mapIndexed { index, answer ->
+            cleanPart(answer.text).ifBlank { batch.slots[index].text }
+        }
+        return BatchAnswer(parts, source, batch.payload.length)
     }
 
     private suspend fun requestRomanizationBatch(batch: Batch, target: String): BatchAnswer? {
