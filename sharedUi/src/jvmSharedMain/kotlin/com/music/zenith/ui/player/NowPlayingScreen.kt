@@ -1040,6 +1040,8 @@ fun NowPlayingScreen(
     onJumpTo: (Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
     onMoveInQueue: (Int, Int) -> Unit,
+    /** Hold on a queue row: opens the track menu for that song at its queue index. */
+    onOpenQueueMenu: (Song, Int) -> Unit = { _, _ -> },
     /**
      * A queue row started or stopped being dragged.
      *
@@ -2993,6 +2995,7 @@ fun NowPlayingScreen(
                             onRemove = onRemoveFromQueue,
                             onMove = onMoveInQueue,
                             onClear = onClearQueue,
+                            onLongPress = onOpenQueueMenu,
                             onDragActiveChange = onQueueDragActiveChange,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
@@ -5595,6 +5598,7 @@ Spacer(Modifier.width(12.dp))
                                     onRemove = onRemoveFromQueue,
                                     onMove = onMoveInQueue,
                                     onClear = onClearQueue,
+                                    onLongPress = onOpenQueueMenu,
                                     onScrollingChange = { queueScrolling = it },
                                     onDragActiveChange = onQueueDragActiveChange,
                                     shuffleEnabled = shuffleEnabled,
