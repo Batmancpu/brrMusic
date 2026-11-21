@@ -193,6 +193,42 @@ internal object ControlLayoutTuning {
 
     private val profiles = Array(4) { mutableStateOf(DEFAULTS[it]) }
 
+    /** Jumlah fase: empat kombinasi volume/lirik, lalu satu fase khusus judul. */
+    const val PHASE_COUNT = 5
+
+    /** Fase 1-4 sebagai (volume disembunyikan, lirik atas bar tampil). Fase 5 khusus judul. */
+    val PHASE_COMBOS = listOf(true to true, false to true, true to false, false to false)
+
+    /** Fase yang sedang dikerjakan (mulai dari 0). */
+    val phase = mutableIntStateOf(0)
+
+    /** Fase yang sudah ditandai selesai. */
+    val phaseDone = mutableStateOf<Set<Int>>(emptySet())
+
+    fun phaseTitle(i: Int): String = when (i) {
+        0 -> "Lirik tampil, volume sembunyi"
+        1 -> "Lirik tampil, volume tampil"
+        2 -> "Lirik sembunyi, volume sembunyi"
+        3 -> "Lirik sembunyi, volume tampil"
+        else -> "Judul, artis, dan bintang"
+    }
+
+    /** Pindah fase dan set saklar volume/lirik sesuai kombinasi fase itu. */
+    fun goToPhase(i: Int) {
+        val n = i.coerceIn(0, PHASE_COUNT - 1)
+        phase.intValue = n
+        if (n < PHASE_COMBOS.size) {
+            hideVolumeOverride.value = PHASE_COMBOS[n].first
+            lyricStripOverride.value = PHASE_COMBOS[n].second
+        } else {
+            lyricStripOverride.value = true
+        }
+    }
+
+    fun markDone(i: Int) {
+        phaseDone.value = phaseDone.value + i
+    }
+
     /** null = ikuti Pengaturan; true/false = dipaksa dari panel debug. */
     val hideVolumeOverride = mutableStateOf<Boolean?>(null)
     val lyricStripOverride = mutableStateOf<Boolean?>(null)
@@ -544,35 +580,88 @@ private fun CanvasTab(canvasActive: Boolean) {
 
 @Composable
 private fun ControlTab(hideVolume: Boolean, lyricStrip: Boolean, lyricStripAvailable: Boolean) {
+    val phase = ControlLayoutTuning.phase.intValue
+    val done = ControlLayoutTuning.phaseDone.value
+    val last = ControlLayoutTuning.PHASE_COUNT - 1
+    // Saklar fase diterapkan setiap kali segmen ini dibuka.
+    LaunchedEffect(Unit) { ControlLayoutTuning.goToPhase(ControlLayoutTuning.phase.intValue) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (i in 0..last) {
+            val active = i == phase
+            Text(
+                text = if (i in done) "${i + 1}\u2713" else "${i + 1}",
+                color = if (active) Color.Black else Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (active) Color.White else Color.White.copy(alpha = 0.18f),
+                        RoundedCornerShape(50),
+                    )
+                    .clickable { ControlLayoutTuning.goToPhase(i) }
+                    .padding(vertical = 6.dp),
+            )
+        }
+    }
+    Text(
+        text = "Fase ${phase + 1} dari ${ControlLayoutTuning.PHASE_COUNT}: ${ControlLayoutTuning.phaseTitle(phase)}",
+        color = Color.White,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (phase > 0) {
+            PanelChip("Kembali") { ControlLayoutTuning.goToPhase(phase - 1) }
+        }
+        Box(Modifier.weight(1f))
+        PanelChip(if (phase < last) "Selesai, lanjut" else "Selesai") {
+            ControlLayoutTuning.markDone(phase)
+            if (phase < last) ControlLayoutTuning.goToPhase(phase + 1)
+        }
+    }
+
+    if (phase < last) {
+        val combo = ControlLayoutTuning.PHASE_COMBOS[phase]
+        val matches = hideVolume == combo.first && lyricStrip == combo.second
+        if (matches) {
+            PhaseSliders(hideVolume, lyricStrip)
+        } else if (!lyricStripAvailable && combo.second) {
+            Caption("Lirik tersinkron mati di Pengaturan, jadi fase ini tidak bisa ditampilkan. Lewati ke fase lain.")
+        } else {
+            Caption("Menyiapkan fase...")
+        }
+    } else {
+        Caption("Atur jarak baris judul, artis, dan bintang ke lirik. Lirik atas bar tidak ikut bergeser.")
+        SwitchRow("Judul tidak ikut aturan lirik mati", ControlLayoutTuning.titleSeparateOn.value) {
+            ControlLayoutTuning.titleSeparateOn.value = it
+        }
+        TunerRow("Cover turun (mode kartu)", ControlLayoutTuning.artExtraDp.floatValue, -30f..60f, 1f) {
+            ControlLayoutTuning.artExtraDp.floatValue = it
+        }
+        TunerRow("Judul/artis/bintang turun", ControlLayoutTuning.titleExtraDp.floatValue, -120f..120f, 1f) {
+            ControlLayoutTuning.titleExtraDp.floatValue = it
+        }
+    }
+    PanelChip("Reset semua") { ControlLayoutTuning.resetAll() }
+}
+
+/** Slider jarak deck kontrol untuk profil kombinasi volume/lirik yang sedang aktif. */
+@Composable
+private fun PhaseSliders(hideVolume: Boolean, lyricStrip: Boolean) {
     val p = ControlLayoutTuning.profile(hideVolume, lyricStrip)
     val update: ((ControlProfile) -> ControlProfile) -> Unit = { transform ->
         ControlLayoutTuning.update(hideVolume, lyricStrip, transform)
     }
-    val hasOverride = ControlLayoutTuning.hideVolumeOverride.value != null ||
-        ControlLayoutTuning.lyricStripOverride.value != null
-    SwitchRow("Sembunyikan volume", hideVolume) {
-        ControlLayoutTuning.hideVolumeOverride.value = it
-    }
-    SwitchRow("Lirik di atas bar", lyricStrip, enabled = lyricStripAvailable) {
-        ControlLayoutTuning.lyricStripOverride.value = it
-    }
-    if (!lyricStripAvailable) {
-        Caption("Lirik tersinkron mati di Pengaturan, jadi baris lirik tidak bisa tampil.")
-    }
-    Caption("Geser baris judul, artis, dan bintang saja. Lirik di atas bar tidak ikut bergeser, jadi jarak ke lirik bisa diatur bebas.")
-    SwitchRow("Buang turunan otomatis saat lirik mati", ControlLayoutTuning.titleSeparateOn.value) {
-        ControlLayoutTuning.titleSeparateOn.value = it
-    }
-    TunerRow("Cover turun (mode kartu)", ControlLayoutTuning.artExtraDp.floatValue, -30f..60f, 1f) {
-        ControlLayoutTuning.artExtraDp.floatValue = it
-    }
-    TunerRow("Judul/artis/bintang turun", ControlLayoutTuning.titleExtraDp.floatValue, -120f..120f, 1f) {
-        ControlLayoutTuning.titleExtraDp.floatValue = it
-    }
-    Caption(
-        "Profil aktif: volume ${if (hideVolume) "sembunyi" else "tampil"}, " +
-            "lirik ${if (lyricStrip) "tampil" else "sembunyi"}. Tiap kombinasi punya setelan sendiri.",
-    )
     TunerRow("Jarak atas seek bar", p.scrubTop, 0f..80f, 1f) { v -> update { it.copy(scrubTop = v) } }
     TunerRow("Seek bar ke tombol play", p.transportTop, 0f..120f, 1f) { v ->
         update { it.copy(transportTop = v) }
@@ -594,12 +683,6 @@ private fun ControlTab(hideVolume: Boolean, lyricStrip: Boolean, lyricStripAvail
     }
     TunerRow("Jarak ke ikon bawah", p.actionsTop, 0f..80f, 1f) { v -> update { it.copy(actionsTop = v) } }
     TunerRow("Padding paling bawah", p.bottomPad, 0f..80f, 1f) { v -> update { it.copy(bottomPad = v) } }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (hasOverride) {
-            PanelChip("Ikuti Pengaturan") { ControlLayoutTuning.clearOverrides() }
-        }
-        PanelChip("Reset semua") { ControlLayoutTuning.resetAll() }
-    }
 }
 
 @Composable
