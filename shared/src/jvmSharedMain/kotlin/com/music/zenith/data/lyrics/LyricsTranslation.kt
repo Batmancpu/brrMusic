@@ -343,38 +343,52 @@ object LyricsTranslation {
 
     private fun cleanPart(text: String): String = text.replace(edgeRegex, "")
 
+    private val TRANSLATE_CLIENTS = listOf("gtx", "dict-chrome-ex", "webapp")
+    private const val BROWSER_AGENT =
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
     private suspend fun fetchTranslation(
         payload: String,
         target: String,
         sourceLanguage: String,
     ): RawTranslation? {
-        val body = FormBody.Builder()
-            .add("client", "dict-chrome-ex")
-            .add("sl", sourceLanguage)
-            .add("tl", target)
-            .add("dt", "t")
-            .add("q", payload)
-            .build()
-        val request = Request.Builder()
-            .url(ENDPOINT)
-            .header("User-Agent", "Zenith/1.7.1")
-            .header("Accept", "application/json")
-            .post(body)
-            .build()
-        val response = try {
-            client.newCall(request).awaitBody()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: IOException) {
-            return null
-        }
-        return runCatching {
-            val root = json.parseToJsonElement(response).jsonArray
-            val text = root[0].jsonArray.joinToString(separator = "") { segment ->
-                segment.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull.orEmpty()
+        // The endpoint answers some "client" values with 403/429 and others
+        // with data, and the set that works changes. A refused client moves on
+        // to the next one; any other failure (offline, timeout) gives up at once.
+        for (clientName in TRANSLATE_CLIENTS) {
+            val body = FormBody.Builder()
+                .add("client", clientName)
+                .add("sl", sourceLanguage)
+                .add("tl", target)
+                .add("dt", "t")
+                .add("q", payload)
+                .build()
+            val request = Request.Builder()
+                .url(ENDPOINT)
+                .header("User-Agent", BROWSER_AGENT)
+                .header("Accept", "application/json")
+                .header("Referer", "https://translate.google.com/")
+                .post(body)
+                .build()
+            val response = try {
+                client.newCall(request).awaitBody()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: IOException) {
+                if (error.message?.startsWith("Translation HTTP") == true) continue
+                return null
             }
-            RawTranslation(text, root.getOrNull(2)?.jsonPrimitive?.contentOrNull.orEmpty())
-        }.getOrNull()
+            val parsed = runCatching {
+                val root = json.parseToJsonElement(response).jsonArray
+                val text = root[0].jsonArray.joinToString(separator = "") { segment ->
+                    segment.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull.orEmpty()
+                }
+                RawTranslation(text, root.getOrNull(2)?.jsonPrimitive?.contentOrNull.orEmpty())
+            }.getOrNull()
+            if (parsed != null) return parsed
+        }
+        return null
     }
 
     private suspend fun requestBatch(
