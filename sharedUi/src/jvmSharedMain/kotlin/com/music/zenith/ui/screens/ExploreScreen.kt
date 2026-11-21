@@ -370,6 +370,13 @@ private val MOOD_MIN_CARD_WIDTH = 220.dp
 
 private const val MOOD_MAX_COLUMNS = 6
 
+/**
+ * Fixed for the life of the process: the Search tab's category cards come out
+ * in a different order every time the app is opened, but never reshuffle
+ * under the finger while it is running.
+ */
+private val MOOD_SHUFFLE_SEED = kotlin.random.Random.nextLong()
+
 private fun moodColumns(available: Dp): Int {
     val row = available - PAGE_GUTTER * 2
     return ((row + MOOD_SPACING) / (MOOD_MIN_CARD_WIDTH + MOOD_SPACING)).toInt().coerceIn(2, MOOD_MAX_COLUMNS)
@@ -398,6 +405,7 @@ internal fun LazyListScope.moodGenreGrid(
             val rows = state.data
                 .flatMap(MoodGenreSection::items)
                 .distinctBy { it.browseId to it.params }
+                .shuffled(kotlin.random.Random(MOOD_SHUFFLE_SEED))
                 .chunked(columns)
             items(rows, key = { row -> row.first().let { "${it.browseId}|${it.params}" } }) { row ->
                 MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
