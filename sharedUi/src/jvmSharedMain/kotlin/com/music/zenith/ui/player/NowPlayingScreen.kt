@@ -3996,14 +3996,14 @@ fun NowPlayingScreen(
                         // extra drop would push the artist into it.
                         // Saat dipisah dari lirik (popup debug), turunan otomatis karena
                         // lirik atas bar mati dibuang; posisi hanya dari setelan debug.
-                        val titleSeparate = ControlLayoutTuning.titleSeparate()
+                        val titleSeparate = ControlLayoutTuning.titleSeparate(hideVolumeBar, lyricStripEnabled)
                         val cardArtDrop = (
                             (if (!heroMode && !videoMode && !lyricStripEnabled && !titleSeparate) CARD_ART_DROP else 0.dp) +
-                                (if (videoMode) 0.dp else ControlLayoutTuning.artExtra())
+                                (if (videoMode) 0.dp else ControlLayoutTuning.artExtra(hideVolumeBar, lyricStripEnabled))
                             ).coerceAtLeast(0.dp)
                         val cardTitleDrop =
                             (if (!heroMode && !videoMode && !lyricStripEnabled && !titleSeparate) CARD_TITLE_DROP else 0.dp) +
-                                (if (videoMode) 0.dp else ControlLayoutTuning.titleExtra())
+                                (if (videoMode) 0.dp else ControlLayoutTuning.titleExtra(hideVolumeBar, lyricStripEnabled))
                         val titleHeroDrop = if (titleSeparate) 0.dp else heroTitleDrop
                         // Functions of the collapse, called at placement and measure
                         // — see [p]. Composition never reads them.
