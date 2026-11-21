@@ -41,7 +41,7 @@ private const val SPLASH_LOGO_TO_FONT = 0.83f
 private const val SPLASH_GAP_TO_FONT = 0.14f
 
 /** How far the mark sits below the screen's centre; centred content moves half of the top padding. */
-private val SPLASH_NUDGE_DOWN = 14.dp
+private val SPLASH_NUDGE_DOWN = 4.dp
 
 /** The logo's height against the word's font size, as for the plain mark. */
 private const val SPLASH_MARK_TO_FONT = 0.83f
