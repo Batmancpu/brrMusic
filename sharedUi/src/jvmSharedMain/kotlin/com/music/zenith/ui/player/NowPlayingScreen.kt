@@ -3122,7 +3122,7 @@ fun NowPlayingScreen(
                         continuous = true,
                         driftMillis = 20_000,
                         colorFadeMillis = 3_500,
-                        matchSeam = (fullBleedArt || canvasHero) && heroMode && !lyricsOpen && !queueOpen,
+                        matchSeam = (fullBleedArt || canvasHero) && heroMode && !lyricsOpen && !queueOpen && !queueShowing,
                         modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
                     )
                     // Sambungan tepi cover tetap tampil di lagu ber-canvas (canvasHero)
@@ -3145,7 +3145,10 @@ fun NowPlayingScreen(
                                 }
                             },
                             modifier = Modifier.graphicsLayer {
-                                alpha = (1f - fullArtworkBackdropAlpha) * edgeAlpha
+                                // Follows the finger while the queue sleeve is dragged;
+                                // edgeAlpha still handles the button and lyrics.
+                                alpha = (1f - fullArtworkBackdropAlpha) *
+                                    minOf(edgeAlpha, 1f - queueSlide.floatValue)
                             },
                         )
                     }
