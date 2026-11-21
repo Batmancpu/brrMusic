@@ -126,7 +126,7 @@ fun MeshGradientBackground(
     /**
      * Holds the blobs where they are, without the settling drift that turning
      * [continuous] off would start. For a caller that stops the mesh for a
-     * for a while — a scroll, the player up over it — and picks it up again after.
+     * while — a scroll, the player up over it — and picks it up again after.
      */
     paused: Boolean = false,
     /**
