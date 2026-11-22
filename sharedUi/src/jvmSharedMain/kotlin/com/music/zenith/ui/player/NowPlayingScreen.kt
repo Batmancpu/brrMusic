@@ -3218,10 +3218,10 @@ fun NowPlayingScreen(
                             // Not for the drawers, popups and ⋯ menu over a
                             // full-screen Spotify Canvas, though: that is the whole
                             // screen, and keeps playing under them, blurred live.
-                            pausedForTransition = (!liveCanvasPanels && (lyricsOpen || queueOpen)) ||
+                            pausedForTransition = (!(liveCanvasPanels && clipFullscreen) && (lyricsOpen || queueOpen)) ||
                                 (dockMoving && CanvasFadeTuning.pausesWhileDocking()) ||
                                 queueDragging ||
-                                (collapseStarted && !(liveCanvasPanels && (lyricsOpen || queueOpen))) ||
+                                (collapseStarted && !(liveCanvasPanels && clipFullscreen && (lyricsOpen || queueOpen))) ||
                                 (overlayOpen.value && !clipFullscreen),
                             // Spotify's 9:16 Canvas is the phone background, so it
                             // covers every edge. Other providers retain the contained
@@ -3244,9 +3244,7 @@ fun NowPlayingScreen(
                             //
                             // Out of sight altogether while its still stands in for it.
                             presentationAlpha = {
-                                if (stillTakesOver() ||
-                                    (dockMoving && !clipFullscreen && !(liveCanvasPanels && (lyricsOpen || queueOpen)))
-                                ) 0f
+                                if (stillTakesOver()) 0f
                                 else (
                                     if (liveCanvasPanels && (lyricsOpen || queueOpen || clipHeldForPanels)) 1f
                                     else if (clipFullscreen) {
