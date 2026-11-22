@@ -157,7 +157,10 @@ fun PlayerPanel(
     }
     val surface = when {
         dock == null || covered -> Modifier
-        glassOn && glassNeeded -> Modifier.liquidGlass(shape)
+        glassOn && glassNeeded -> Modifier.liquidGlass(
+            shape = shape,
+            edgeDepth = com.music.zenith.data.settings.GlassBarMetrics.layout.edgeDepth,
+        )
         glassOn -> Modifier
         else -> Modifier.background(dock?.panelColor ?: PanelFallbackFill, shape)
     }
@@ -304,9 +307,10 @@ private fun PanelMiniRow(
     // goes, and any difference reads as the title resizing. The glass bar's
     // accessory and the plain mini player are set differently, so this
     // follows whichever of them is underneath.
+    val bar = com.music.zenith.data.settings.GlassBarMetrics.layout
     val titleStyle = if (glass) {
         MaterialTheme.typography.titleMedium.copy(
-            fontSize = 13.sp,
+            fontSize = bar.playerTitleSize.sp,
             fontWeight = FontWeight.W700,
             letterSpacing = 0.15.sp,
         )
@@ -314,11 +318,15 @@ private fun PanelMiniRow(
         MaterialTheme.typography.titleMedium
     }
     val artistStyle = if (glass) {
-        MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, letterSpacing = 0.35.sp)
+        MaterialTheme.typography.bodyMedium.copy(fontSize = bar.playerArtistSize.sp, letterSpacing = 0.35.sp)
     } else {
         MaterialTheme.typography.bodyMedium
     }
-    val glyphSlot = if (!glass) 40.dp else if (showNext) 40.dp else 32.dp
+    val glyphSlot = when {
+        !glass -> 40.dp
+        showNext -> (bar.playerHeight - 8f).dp
+        else -> (bar.tabIconSize + 12f).coerceAtMost(32f).dp
+    }
     // 29dp expanded, as the glass accessory's own play glyph is.
     val glyphSize = if (!glass) 32.dp else if (showNext) 29.dp else 24.dp
     Box(
@@ -354,7 +362,7 @@ private fun PanelMiniRow(
                     bottom = if (glass) 4.dp else 8.dp,
                 ),
         ) {
-            val artSize = if (glass) MINI_ART_SIZE else 40.dp
+            val artSize = if (glass) bar.playerArt.dp else 40.dp
             val artShape = RoundedCornerShape(if (glass) MINI_ART_CORNER else 8.dp)
             val artWidth = when {
                 !song.isVideo -> artSize
