@@ -197,7 +197,7 @@ object AppleMusicCanvas {
         val traits = best["attributes"]?.jsonObject
             ?.get("audioTraits")?.jsonArray
             ?.mapNotNull { it.jsonPrimitive.contentOrNull }
-        Log.d(TAG, "audioTraits for '$album': $traits")
+        com.music.zenith.data.TrackLog.d(TAG, "audioTraits for '$album': $traits")
         return traits
     }
 
