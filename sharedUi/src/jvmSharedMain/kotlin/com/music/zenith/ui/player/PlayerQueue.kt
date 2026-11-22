@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.Velocity
 import coil3.compose.AsyncImage
 import com.music.zenith.ui.components.thumbnailBorder
 import com.music.zenith.ui.components.SwipeToQueueBox
+import com.music.zenith.ui.components.menuAnchor
 import com.music.zenith.ui.icons.ZenithIcons
 import androidx.compose.material.icons.rounded.Add
 import com.music.zenith.ui.haptics.Haptic
@@ -150,7 +151,7 @@ internal fun keepScrollInList(listState: LazyListState) = object : NestedScrollC
 private val QUEUE_ROW_MOTION = tween<IntOffset>(durationMillis = 200, easing = FastOutSlowInEasing)
 
 /** Softens the list where it meets the header and the scrubber. */
-internal fun Modifier.fadingEdges(): Modifier = this
+internal fun Modifier.fadingEdges(bottomFade: androidx.compose.ui.unit.Dp = 28.dp): Modifier = this
     .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
     .drawWithContent {
         drawContent()
@@ -166,7 +167,7 @@ internal fun Modifier.fadingEdges(): Modifier = this
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(Color.Black, Color.Transparent),
-                startY = size.height - fade,
+                startY = size.height - bottomFade.toPx(),
                 endY = size.height,
             ),
             blendMode = BlendMode.DstIn,
@@ -254,6 +255,8 @@ internal fun InlineQueue(
     onRemove: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     onClear: () -> Unit,
+    /** Hold on a row: opens the track menu for that song and its place in the queue. */
+    onLongPress: (Song, Int) -> Unit = { _, _ -> },
     onScrollingChange: (Boolean) -> Unit = {},
     onDragActiveChange: (Boolean) -> Unit = {},
     /** Phone only: let queue scrolling dismiss/restore the lower half player. */
@@ -268,6 +271,10 @@ internal fun InlineQueue(
     onToggleAutoplay: () -> Unit = {},
     /** Frost source for the long-press info cards on the playback mode buttons. */
     hazeState: HazeState? = null,
+    /** Tinggi fade di kaki daftar; dipendekkan saat strip lirik di atas bar mati. */
+    bottomFade: androidx.compose.ui.unit.Dp = 28.dp,
+    /** Bagian bawah daftar yang berada di luar layar (panel ditinggikan), agar baris terakhir tetap bisa di-scroll penuh. */
+    bottomInset: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -354,7 +361,7 @@ internal fun InlineQueue(
             modifier = Modifier
                 .fillMaxWidth()
                 .bleedHorizontally(PLAYER_GUTTER)
-                .fadingEdges(),
+                .fadingEdges(bottomFade),
         ) {
             LazyColumn(
                 state = listState,
@@ -366,7 +373,12 @@ internal fun InlineQueue(
                     .then(if (collapsePlayerOnScroll) Modifier.nestedScroll(controlsOnScroll) else Modifier),
                 // Zona fade [fadingEdges] 28dp; padding atas sengaja lebih kecil
                 // supaya "Add Songs to Queue" naik dan hanya sedikit masuk fade.
-                contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, top = 4.dp),
+                contentPadding = PaddingValues(
+                    start = PLAYER_GUTTER,
+                    end = PLAYER_GUTTER,
+                    top = 4.dp,
+                    bottom = bottomFade + bottomInset,
+                ),
             ) {
                 if (tracks.history.isNotEmpty()) {
                     item(key = "header-history") {
@@ -390,7 +402,7 @@ internal fun InlineQueue(
                 if (tracks.user.isNotEmpty()) {
                     // No heading of its own: the "Queue" title above already names
                     // this list and carries the Clear button.
-                    queueSection(tracks.user, QueueSection.USER, drag, controlsLocked, onJumpTo, onRemove)
+                    queueSection(tracks.user, QueueSection.USER, drag, controlsLocked, onJumpTo, onRemove, onLongPress)
                 }
                 if (!controlsLocked) {
                     item(key = "add-songs") {
@@ -408,13 +420,13 @@ internal fun InlineQueue(
                             modifier = Modifier.padding(top = 16.dp, bottom = 6.dp).then(queueMotion()),
                         )
                     }
-                    queueSection(tracks.context, QueueSection.CONTEXT, drag, controlsLocked, onJumpTo, onRemove)
+                    queueSection(tracks.context, QueueSection.CONTEXT, drag, controlsLocked, onJumpTo, onRemove, onLongPress)
                 }
                 if (autoplayEnabled || tracks.autoplay.isNotEmpty()) {
                     item(key = "autoplay-heading") {
                         AutoplayHeading(hasTracks = tracks.autoplay.isNotEmpty(), modifier = queueMotion())
                     }
-                    queueSection(tracks.autoplay, QueueSection.AUTOPLAY, drag, controlsLocked, onJumpTo, onRemove)
+                    queueSection(tracks.autoplay, QueueSection.AUTOPLAY, drag, controlsLocked, onJumpTo, onRemove, onLongPress)
                 }
             }
             // The held row, drawn over the list where the finger is. Positioned
@@ -463,6 +475,7 @@ private fun LazyListScope.queueSection(
     locked: Boolean,
     onJumpTo: (Int) -> Unit,
     onRemove: (Int) -> Unit,
+    onLongPress: (Song, Int) -> Unit,
 ) {
     items(rows, key = { it.key }) { track ->
         val held = drag.held?.key == track.key
@@ -476,6 +489,7 @@ private fun LazyListScope.queueSection(
             isCurrent = false,
             onClick = { onJumpTo(track.timelineIndex) },
             onRemove = { onRemove(track.timelineIndex) },
+            onLongPress = { onLongPress(track.song, track.timelineIndex) },
             locked = locked,
             draggable = !locked,
             onDragStart = { drag.start(track.key, section) },
@@ -999,6 +1013,7 @@ private fun InlineQueueRow(
     isCurrent: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     locked: Boolean = false,
     draggable: Boolean = false,
@@ -1012,6 +1027,7 @@ private fun InlineQueueRow(
             song = song,
             isCurrent = isCurrent,
             onClick = onClick,
+            onLongPress = onLongPress,
             modifier = modifier,
             locked = locked,
             draggable = draggable,
@@ -1030,6 +1046,7 @@ private fun InlineQueueRow(
                 song = song,
                 isCurrent = isCurrent,
                 onClick = onClick,
+                onLongPress = onLongPress,
                 modifier = Modifier,
                 locked = locked,
                 draggable = draggable,
@@ -1042,11 +1059,14 @@ private fun InlineQueueRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun InlineQueueRowBody(
     song: Song,
     isCurrent: Boolean,
     onClick: () -> Unit,
+    /** Hold on the row; null leaves the row tap-only. */
+    onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** @see InlineQueue */
     locked: Boolean = false,
@@ -1058,14 +1078,21 @@ private fun InlineQueueRowBody(
     onDrag: (Float) -> Unit = {},
     onDragEnd: () -> Unit = {},
 ) {
+    // The menu hangs off the row that was held, the way the ⋯ one hangs off its button.
+    val anchorModifier = if (onLongPress != null) Modifier.menuAnchor() else Modifier
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(if (lifted) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+            .then(anchorModifier)
             // Disabled rather than ignored: a tap that ripples and then does
             // nothing reads as the app having missed it.
-            .clickable(enabled = !locked, onClick = onClick)
+            .combinedClickable(
+                enabled = !locked,
+                onClick = onClick,
+                onLongClick = onLongPress,
+            )
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

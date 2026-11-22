@@ -1059,6 +1059,8 @@ fun NowPlayingScreen(
     onJumpTo: (Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
     onMoveInQueue: (Int, Int) -> Unit,
+    /** Hold on a queue row: opens the track menu for that song at its queue index. */
+    onOpenQueueMenu: (Song, Int) -> Unit = { _, _ -> },
     /**
      * A queue row started or stopped being dragged.
      *
@@ -1745,10 +1747,10 @@ fun NowPlayingScreen(
         }
     }
     val fullBleedSetting by PlayerSettings.fullBleedArtwork.collectAsStateWithLifecycle()
-    // Lagu tipe video yang tidak punya canvas hanya punya frame 16:9 sebagai
-    // cover. Dibentangkan full screen hasilnya buruk, jadi tetap jadi kartu
-    // walau pengaturan full-bleed menyala. Dengan canvas, aturannya tidak berubah.
-    val fullBleedArt = fullBleedSetting && !(song.isVideo && canvas == null)
+    // Full-bleed hanya diblokir saat klip video benar-benar tampil di tempat
+    // cover (videoMode). Lagu video dengan cover diam (still video covers) atau
+    // tanpa dukungan video kini ikut pengaturan full-bleed seperti lagu biasa.
+    val fullBleedArt = fullBleedSetting && !(videoMode && canvas == null)
     // Full-bleed is a phone idiom. What the width has to rule out is a player
     // running a foot wider than the column of controls under it — edge to edge
     // meaning "a picture, and separately some controls" rather than "the
@@ -2643,7 +2645,8 @@ fun NowPlayingScreen(
                         PlayerScrubber(
                             shown = shown,
                             durationMs = durationMs,
-                            loading = versionAligning || audioVersionSwitching,
+                            loading = versionAligning || audioVersionSwitching ||
+                                (isLoading && !scrub.scrubbing && scrub.pendingSeek == null),
                             mixing = mixing && !scrub.scrubbing,
                             transitionWindow = transitionWindow
                                 ?.takeIf { !scrub.scrubbing && it.end > it.start }
@@ -2912,7 +2915,8 @@ fun NowPlayingScreen(
                                 PlayerScrubber(
                                     shown = shown,
                                     durationMs = durationMs,
-                                    loading = versionAligning || audioVersionSwitching,
+                                    loading = versionAligning || audioVersionSwitching ||
+                                        (isLoading && !scrub.scrubbing && scrub.pendingSeek == null),
                                     mixing = mixing && !scrub.scrubbing,
                                     transitionWindow = transitionWindow
                                         ?.takeIf { !scrub.scrubbing && it.end > it.start }
@@ -3053,6 +3057,7 @@ fun NowPlayingScreen(
                             onRemove = onRemoveFromQueue,
                             onMove = onMoveInQueue,
                             onClear = onClearQueue,
+                            onLongPress = onOpenQueueMenu,
                             onDragActiveChange = onQueueDragActiveChange,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
@@ -3179,6 +3184,7 @@ fun NowPlayingScreen(
                         continuous = true,
                         driftMillis = 20_000,
                         colorFadeMillis = 3_500,
+                        matchSeam = (fullBleedArt || canvasHero) && heroMode && !lyricsOpen && !queueOpen && !queueShowing,
                         modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
                     )
                     // Sambungan tepi cover tetap tampil di lagu ber-canvas (canvasHero)
@@ -3201,7 +3207,10 @@ fun NowPlayingScreen(
                                 }
                             },
                             modifier = Modifier.graphicsLayer {
-                                alpha = (1f - fullArtworkBackdropAlpha) * edgeAlpha
+                                // Follows the finger while the queue sleeve is dragged;
+                                // edgeAlpha still handles the button and lyrics.
+                                alpha = (1f - fullArtworkBackdropAlpha) *
+                                    minOf(edgeAlpha, 1f - queueSlide.floatValue)
                             },
                         )
                     }
@@ -3272,6 +3281,7 @@ fun NowPlayingScreen(
                             // full-screen Spotify Canvas, though: that is the whole
                             // screen, and keeps playing under them, blurred live.
                             pausedForTransition = (!liveCanvasPanels && (lyricsOpen || queueOpen)) ||
+                                (dockMoving && CanvasFadeTuning.pausesWhileDocking()) ||
                                 queueDragging ||
                                 (collapseStarted && !(liveCanvasPanels && (lyricsOpen || queueOpen))) ||
                                 (overlayOpen.value && !clipFullscreen),
@@ -3931,7 +3941,8 @@ fun NowPlayingScreen(
                     // Both named here, so there is no frame of the switch with nothing
                     // on screen saying the player is still working.
                     val versionAligning by PlayerSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
-                    val versionSwitching = versionAligning || audioVersionSwitching
+                    val versionSwitching = versionAligning || audioVersionSwitching ||
+                        (isLoading && !scrub.scrubbing && scrub.pendingSeek == null)
                     // Height the artwork block below turns out not to need, spent by the
                     // controls at the foot of the screen. Filled in from inside the box,
                     // where the sleeve's real size is known; see [lastControlSpread].
@@ -3964,7 +3975,10 @@ fun NowPlayingScreen(
                         // or coming back from the lyrics panel, where the strip is
                         // rebuilt from scratch) was pocketed for good. The gaps
                         // ratcheted open a little at a time and the sleeve paid for it.
-                        val roomy = maxHeight + (if (heroMode) controlSpread else 0.dp)
+                        // Tinggi deck kontrol yang disetel lewat popup debug tidak boleh
+                        // mengubah ukuran cover: selisihnya ditambahkan kembali di sini.
+                        val tuneDelta = ControlLayoutTuning.deckDelta(hideVolumeBar, lyricStripEnabled)
+                        val roomy = maxHeight + tuneDelta + (if (heroMode) controlSpread else 0.dp)
                         // The sleeve is square, so it is bounded by whichever of the
                         // two axes runs out first: the player's width on a phone, or —
                         // on a tablet, where there is width to spare — the height left
@@ -3979,14 +3993,14 @@ fun NowPlayingScreen(
                         // takes the gaps below to catch up with a change in their own
                         // height: a sleeve a few dp under for one frame is a better
                         // failure than a credits row overhanging the lyric strip.
-                        val fullArt = minOf(wantArt, maxHeight - ART_TITLE_GAP - HEADER_HEIGHT)
+                        val fullArt = minOf(wantArt, maxHeight + tuneDelta - ART_TITLE_GAP - HEADER_HEIGHT)
                             .coerceAtLeast(THUMB_SIZE)
                         // Slot yang sama di mode full-bleed maupun kartu, supaya judul dan
                         // tombol tidak bergeser saat lagu berpindah antar dua mode itu.
                         val slotArt = minOf(
                             maxWidth + 48.dp,
                             roomy - ART_TITLE_GAP - HEADER_HEIGHT,
-                            maxHeight - ART_TITLE_GAP - HEADER_HEIGHT,
+                            maxHeight + tuneDelta - ART_TITLE_GAP - HEADER_HEIGHT,
                         ).coerceAtLeast(fullArt)
                         // What's left over once the sleeve, the gap and the credits have
                         // had theirs. A few dp on a phone; the better part of a
@@ -4062,20 +4076,20 @@ fun NowPlayingScreen(
                         // the pair sits centred while the queue is closed — in whatever
                         // the controls couldn't take, which on all but the tallest
                         // screens is nothing.
-                        val groupTop = (maxHeight - slotArt - ART_TITLE_GAP - HEADER_HEIGHT)
+                        val groupTop = (maxHeight + tuneDelta - slotArt - ART_TITLE_GAP - HEADER_HEIGHT)
                             .coerceAtLeast(0.dp) / 2
                         // The lyric strip sits right under the credits row, so the
                         // extra drop would push the artist into it.
                         // Saat dipisah dari lirik (popup debug), turunan otomatis karena
                         // lirik atas bar mati dibuang; posisi hanya dari setelan debug.
-                        val titleSeparate = ControlLayoutTuning.titleSeparate()
+                        val titleSeparate = ControlLayoutTuning.titleSeparate(hideVolumeBar, lyricStripEnabled)
                         val cardArtDrop = (
                             (if (!heroMode && !videoMode && !lyricStripEnabled && !titleSeparate) CARD_ART_DROP else 0.dp) +
-                                (if (videoMode) 0.dp else ControlLayoutTuning.artExtra())
+                                (if (videoMode) 0.dp else ControlLayoutTuning.artExtra(hideVolumeBar, lyricStripEnabled))
                             ).coerceAtLeast(0.dp)
                         val cardTitleDrop =
                             (if (!heroMode && !videoMode && !lyricStripEnabled && !titleSeparate) CARD_TITLE_DROP else 0.dp) +
-                                (if (videoMode) 0.dp else ControlLayoutTuning.titleExtra())
+                                (if (videoMode) 0.dp else ControlLayoutTuning.titleExtra(hideVolumeBar, lyricStripEnabled))
                         val titleHeroDrop = if (titleSeparate) 0.dp else heroTitleDrop
                         // Functions of the collapse, called at placement and measure
                         // — see [p]. Composition never reads them.
@@ -5634,6 +5648,20 @@ Spacer(Modifier.width(12.dp))
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(top = HEADER_HEIGHT)
+                                    // Strip lirik mati: slotnya di deck tinggal ruang kosong,
+                                    // jadi panel queue ikut turun menutupinya (digambar di
+                                    // bawah deck) alih-alih berhenti jauh di atas scrubber.
+                                    .layout { measurable, constraints ->
+                                        if (lyricStripEnabled || !constraints.hasBoundedHeight) {
+                                            val p = measurable.measure(constraints)
+                                            return@layout layout(p.width, p.height) { p.place(0, 0) }
+                                        }
+                                        val h = constraints.maxHeight + 36.dp.roundToPx()
+                                        val placeable = measurable.measure(
+                                            constraints.copy(minHeight = h, maxHeight = h),
+                                        )
+                                        layout(placeable.width, constraints.maxHeight) { placeable.place(0, 0) }
+                                    }
                                     .offset {
                                         if (queuePanelShown) IntOffset.Zero else IntOffset(100_000, 0)
                                     }
@@ -5670,6 +5698,7 @@ Spacer(Modifier.width(12.dp))
                                     onRemove = onRemoveFromQueue,
                                     onMove = onMoveInQueue,
                                     onClear = onClearQueue,
+                                    onLongPress = onOpenQueueMenu,
                                     onScrollingChange = { queueScrolling = it },
                                     onDragActiveChange = onQueueDragActiveChange,
                                     shuffleEnabled = shuffleEnabled,
@@ -5681,6 +5710,9 @@ Spacer(Modifier.width(12.dp))
                                     collapsePlayerOnScroll = true,
                                     onRevealPlayer = { queueControlsOpen = true },
                                     onHidePlayer = { queueControlsOpen = false },
+                                    bottomFade = if (lyricStripEnabled) 28.dp else 14.dp,
+                                    // Tanpa strip lirik panel diukur 36dp lebih tinggi dari slotnya.
+                                    bottomInset = if (lyricStripEnabled) 0.dp else 36.dp,
                                     modifier = Modifier.weight(1f),
                                 )
                             }

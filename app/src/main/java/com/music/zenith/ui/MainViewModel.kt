@@ -1950,6 +1950,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
+    private val _newReleases = MutableStateFlow<UiState<List<HomeShelf>>>(UiState.Loading)
+    val newReleases: StateFlow<UiState<List<HomeShelf>>> = _newReleases.asStateFlow()
+
+    /** Loads the New releases page once; [force] reads it again. */
+    fun loadNewReleases(force: Boolean = false) {
+        if (!force && _newReleases.value is UiState.Success) return
+        _newReleases.value = UiState.Loading
+        viewModelScope.launch {
+            _newReleases.value = YtMusicRepository.newReleaseShelves().fold(
+                onSuccess = { shelves ->
+                    if (shelves.isEmpty()) UiState.Error(text(R.string.nothing_to_explore))
+                    else UiState.Success(shelves)
+                },
+                onFailure = { UiState.Error(it.friendly()) },
+            )
+        }
+    }
+
+    private val _charts = MutableStateFlow<UiState<List<HomeShelf>>>(UiState.Loading)
+    val charts: StateFlow<UiState<List<HomeShelf>>> = _charts.asStateFlow()
+
+    private val _chartCountry = MutableStateFlow(
+        java.util.Locale.getDefault().country
+            .takeIf { it in com.music.zenith.ui.screens.CHART_COUNTRY_CODES } ?: "ZZ",
+    )
+    val chartCountry: StateFlow<String> = _chartCountry.asStateFlow()
+
+    private var chartsJob: kotlinx.coroutines.Job? = null
+    private var chartsLoadedFor: String? = null
+
+    /** Loads the charts of [country] ("ZZ" is Global); a country already on screen is left alone. */
+    fun loadCharts(country: String = _chartCountry.value, force: Boolean = false) {
+        if (!force && country == chartsLoadedFor && _charts.value is UiState.Success) return
+        _chartCountry.value = country
+        chartsJob?.cancel()
+        _charts.value = UiState.Loading
+        chartsJob = viewModelScope.launch {
+            _charts.value = YtMusicRepository.chartShelves(country).fold(
+                onSuccess = { shelves ->
+                    if (shelves.isEmpty()) {
+                        UiState.Error(text(R.string.nothing_to_explore))
+                    } else {
+                        chartsLoadedFor = country
+                        UiState.Success(shelves)
+                    }
+                },
+                onFailure = { UiState.Error(it.friendly()) },
+            )
+        }
+    }
+
     /** Tapping a tab should leave any pushed page behind. */
     fun clearDetail() {
         if (_detailStack.value.isNotEmpty()) _detailStack.value = emptyList()
@@ -3557,7 +3608,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             delay(150)
             var next: String? = token
             while (next != null) {
-                val fetched = YtMusicRepository.moreSongs(next).getOrNull() ?: return@launch
+                val pageToken = next
+                // One dropped request used to end the walk for good, leaving a
+                // long playlist cut short on screen and in its menu.
+                val fetched = retryingOrNull(FILL_IN_RETRIES_MS) {
+                    YtMusicRepository.moreSongs(pageToken).getOrNull()
+                } ?: return@launch
                 // Repository calls may finish after cancellation. Do not let
                 // an in-flight UI page append after the playback service has
                 // taken the continuation over.
@@ -4071,6 +4127,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun text(id: Int): String = getApplication<Application>().getString(id)
+}
+
+/** Waits before each retry of a page's fill-in. */
+private val FILL_IN_RETRIES_MS = longArrayOf(2_000L, 5_000L, 15_000L)
+
+/** [attempt], then again after each of [waitsMs] while it answers null; null if it never answers. */
+internal suspend fun <T : Any> retryingOrNull(waitsMs: LongArray, attempt: suspend () -> T?): T? {
+    attempt()?.let { return it }
+    for (wait in waitsMs) {
+        delay(wait)
+        attempt()?.let { return it }
+    }
+    return null
 }
 
 /**
