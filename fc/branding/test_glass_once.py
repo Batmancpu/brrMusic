@@ -24,6 +24,7 @@ class OneReleaseGlassTests(unittest.TestCase):
             '                .size(MORPH_CIRCLE)\n'
             '                .clip(shape)\n'
             '                .then(glass))\n'
+            '                        .align(Alignment.CenterStart)\n'
             '                        .size(MORPH_CONTROL)\n'
             '                        .graphicsLayer { alpha = openFraction }\n'
             '                        .clickable('
