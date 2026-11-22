@@ -1,6 +1,6 @@
-# FC Zenith / Music
+# brrMusic — independent build overlays
 
-Personal fork: **Batmancpu/FCZenith**  
+Personal fork: **Batmancpu/brrMusic**  
 Direct upstream: **rezapranata089-bit/Zenith**
 
 ## Only installed-app changes
@@ -15,7 +15,7 @@ not permanently rewrite upstream app source files.
 
 ## Permanent Spatial Audio integration
 
-FC Zenith keeps its Spatial Audio engine as an FC-owned, removable build
+brrMusic keeps its Spatial Audio engine as an FC-owned, removable build
 integration under `fc/spatial-audio/`. The upstream application source remains
 clean in Git: the release workflow applies the integration to the build
 workspace, runs the normal production tests, builds and signs the APK, then
@@ -39,13 +39,13 @@ per-track On/Off feedback and keeps profiles on-device.
 
 Use this repository URL as the Obtainium source:
 
-https://github.com/Batmancpu/FCZenith
+https://github.com/Batmancpu/brrMusic
 
 Releases publish one universal APK named `brrMusic-v<version>.apk` while the
 branding flag is enabled (or `Music-v<version>.apk` after rollback). The app's
 built-in updater uses that matching prefix in each APK.
 
-## Temporary, reversible presentation-only brrMusic branding
+## Reversible brrMusic identity
 
 The launcher label, Home header, visible UI resource text, release title and APK
 asset prefix are displayed as **brrMusic**. The launcher icon is unchanged.
@@ -73,9 +73,19 @@ All changes to upstream UI files are made in the CI workspace only, tested and
 removed from Git before committing new upstream source. Missing upstream
 anchors fail the build instead of silently creating a partially rebranded APK.
 
+## Complete user-visible identity layer
+
+The CI workspace applies `fc/branding/apply.py` followed by `fc/branding/makeover.py`. The first layer handles inherited app strings, Home, Replay and shared-image branding. The second layer covers the startup animation, reusable wordmark, glass icon options, onboarding icon resources, and visible project links. It also scans UI-only Kotlin text literals for leftover upstream display names, leaving package names, classes, service URLs and storage identifiers intact.
+
+The protected production workflow **restores generated app and shared UI edits before any upstream sync is committed**. brrMusic's source-of-truth customization therefore remains in `fc/branding/`, not permanently mixed into upstream code. The independent Canvas site in `canvas-web/public/` has matching visual identity; its Firebase identifiers remain unchanged to preserve authentication and uploads.
+
+Increment `brandingRevision` in `fc/branding/config.properties` when the identity presentation changes. The release workflow compares it with the last shipped revision and issues a new signed APK even without a new upstream commit. Preview and regression checks are run in the pull-request Android validation workflow.
+
+**No package rename:** the production application ID remains `com.spotify.music`, so it keeps the same installed-app identity and signed update path. Historical downloaded-file paths keep their actual names for compatibility, even though the visible UI uses a generic downloads label.
+
 ## Automated upstream main releases
 
-FC Zenith does **not** poll upstream on a timer. It checks upstream only when
+brrMusic does **not** poll upstream on a timer. It checks upstream only when
 the workflow is manually started or a commit is pushed to this fork's `main`.
 New upstream commits are merged into the FC fork's build workspace
 while FC-owned workflows, branding, signing and the Spatial Audio integration
@@ -93,7 +103,7 @@ restart at `.1`. Android `versionCode` always increases.
 
 ## Run an upstream check on demand
 
-In GitHub's **Actions** tab, select **FC Zenith — upstream sync and Music
+In GitHub's **Actions** tab, select **brrMusic — upstream sync and Music
 release** and choose **Run workflow**. Alternatively, ask ChatGPT to trigger
 an update: ChatGPT can change `fc/sync-request.txt` in the repository through
 the GitHub connection, producing a `main` push that starts the same workflow.

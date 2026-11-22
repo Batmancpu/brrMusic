@@ -70,10 +70,10 @@ async function handleStart(msg) {
     (status === "restricted" && member.result.is_member === true);
   if (!isMember) {
     const link = process.env.TELEGRAM_GROUP_LINK;
-    const extra = link ? { reply_markup: { inline_keyboard: [[{ text: "Join Zenith Group", url: link }]] } } : {};
+    const extra = link ? { reply_markup: { inline_keyboard: [[{ text: "Join the community group", url: link }]] } } : {};
     await tg("sendMessage", Object.assign({
       chat_id: msg.chat.id,
-      text: "Your account is not a member of the Zenith group. Join the group first, then sign in again from the website."
+      text: "You need membership in the required community group. Join it first, then sign in again."
     }, extra));
     return;
   }
@@ -109,7 +109,7 @@ async function handleStart(msg) {
     }
   );
   if (!patch.ok) throw new Error("firestore patch " + patch.status);
-  await reply("Login successful. Return to the Zenith Canvas page.");
+  await reply("Signed in. Return to brrMusic Canvas.");
 }
 
 async function handle(cb) {

@@ -90,24 +90,20 @@ Those are **inherited features**, not original brrMusic inventions. Explore [Zen
 
 </details>
 
-## Made for the listening experience
+## The brrMusic experience
 
-The interface is based on Zenith's animated, artwork-led player. brrMusic adds its own presentation in the generated APK while keeping the underlying app architecture upstream-compatible.
+A calmer identity, from the first frame to the last detail.
 
-<details>
-<summary><b>Explore the inherited interface screenshots</b></summary>
+| Moment | brrMusic presentation |
+| :--- | :--- |
+| **Launch** | A midnight-to-indigo opening screen with brrMusic lettering and an original sound-wave mark. |
+| **Home and browsing** | brrMusic wordmark and inherited music discovery without the original upstream Z badge. |
+| **Onboarding and icons** | Fork-specific startup and glass-icon artwork while retaining the existing installed package. |
+| **Playlists and sharing** | brrMusic in visible labels, Replay cards and shared content; clean lyric images without watermarks. |
+| **Settings and updates** | brrMusic name and version, fork download links and explicit links for upstream attribution. |
+| **Canvas website** | Matching brrMusic identity, a sound-wave emblem and cool-toned dark styling. |
 
-<br />
-
-These screenshots are inherited from Zenith. They illustrate the underlying interface; text, iconography and details in the **brrMusic APK can differ**.
-
-<p align="center">
-  <img src=".github/assets/screenshots/screenshot-1.jpg" width="30%" alt="Inherited interface preview: Home" />
-  <img src=".github/assets/screenshots/screenshot-3.jpg" width="30%" alt="Inherited interface preview: Library" />
-  <img src=".github/assets/screenshots/screenshot-5.jpg" width="30%" alt="Inherited interface preview: Player" />
-</p>
-
-</details>
+**Screenshots:** The previous README contained screenshots captured from Zenith. Those legacy screenshots have been removed rather than presented as evidence of the new brrMusic interface. Verified screenshots from an installed release can be added after device testing.
 
 ## Install
 
