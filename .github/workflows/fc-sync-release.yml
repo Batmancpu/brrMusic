@@ -358,9 +358,10 @@ jobs:
         if: steps.decision.outputs.should_release == 'true'
         run: |
           set -euo pipefail
-          python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py
+          python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py fc/branding/glass_once.py
           python3 fc/branding/apply.py
           python3 fc/branding/makeover.py
+          python3 fc/branding/glass_once.py
       - name: Run production unit tests
         if: steps.decision.outputs.should_release == 'true'
         env:
@@ -588,3 +589,21 @@ jobs:
           files: dist/${{ env.FC_APK_PREFIX }}v${{ steps.decision.outputs.version_name }}.apk
           fail_on_unmatched_files: true
           make_latest: true
+
+      - name: Disarm one-release glass elasticity only after verified publication
+        if: steps.decision.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ steps.decision.outputs.version_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Fxq 'oneReleaseElastic=true' fc/branding/config.properties; then
+            expected="brrMusic-v${VERSION_NAME}.apk"
+            gh release view "v${VERSION_NAME}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq "$expected"
+            sed -i 's/^oneReleaseElastic=true$/oneReleaseElastic=false/' fc/branding/config.properties
+            git add fc/branding/config.properties
+            git commit -m "chore(branding): retire one-release elastic glass trial after v${VERSION_NAME}"
+            git push origin HEAD:main
+            echo "One-release glass experiment disarmed for all future builds."
+          fi
