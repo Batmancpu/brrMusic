@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.music.zenith.data.model.ROW_ART_PX
 import com.music.zenith.data.model.Song
+import com.music.zenith.data.settings.GlassBarMetrics
 import com.music.zenith.data.model.artworkAt
 import com.music.zenith.playback.MusicOnlyPlayback
 import com.music.zenith.ui.components.floatingtabbar.FloatingTabBar
@@ -122,6 +123,7 @@ fun GlassNavBar(
     // this shape, and a fresh RoundedCornerShape each pass means a fresh factory
     // lambda, which the tab bar sees as a changed argument and recomposes on.
     val pillShape = remember { RoundedCornerShape(percent = 50) }
+    val bar = GlassBarMetrics.layout
     val contentColor = glassContentColor()
 // Tema gelap: aksen dicerahkan supaya tetap terbaca di atas glass yang memantulkan
 // cover cerah. Tema terang tidak berubah.
@@ -152,7 +154,7 @@ val haptics = rememberHaptics()
     // the three surfaces gets its own glass modifier and so its own shape cache.
     // The theme's own glass tint, as the liquid top bar has it — no white wash.
     val glassSurface: @Composable () -> Modifier = {
-        Modifier.liquidGlass(shape = pillShape, edgeDepth = NAV_EDGE_DEPTH)
+        Modifier.liquidGlass(shape = pillShape, edgeDepth = bar.edgeDepth)
     }
 
     // Seberapa terbuka player (0..1), dibaca saat draw oleh tab bar untuk
@@ -252,13 +254,14 @@ val haptics = rememberHaptics()
         sizes = FloatingTabBarDefaults.sizes(
             tabBarContentPadding = PaddingValues(PILL_INSET),
             tabExpandedContentPadding = PaddingValues(vertical = TAB_VERTICAL_PADDING),
+            componentSpacing = bar.componentGap.dp,
             // Collapsed, Apple's row is narrower and more spaced: 48pt circles
             // 28pt in from the screen's sides, 14pt apart, centred on the line
             // the expanded bar's middle runs along.
             inlineComponentSpacing = INLINE_SPACING,
             inlineBarPadding = PaddingValues(
-                start = INLINE_GUTTER - NAV_BAR_GUTTER,
-                end = INLINE_GUTTER - NAV_BAR_GUTTER,
+                start = maxOf(INLINE_GUTTER - NAV_BAR_GUTTER, 0.dp),
+                end = maxOf(INLINE_GUTTER - NAV_BAR_GUTTER, 0.dp),
                 bottom = INLINE_LIFT,
             ),
         ),
@@ -388,7 +391,12 @@ private fun GlassNowPlaying(
     // [inlineProgress] is the blend itself when given: no second spring that starts
     // late or settles apart from the bar it is following.
     val inlineMix = inlineProgress?.invoke() ?: inlineMixSpring
-    val glyphSlot = lerpDp(34.dp, 32.dp, inlineMix)
+    val bar = GlassBarMetrics.layout
+    val glyphSlot = lerpDp(
+        (bar.playerHeight - 8f).dp,
+        (bar.tabIconSize + 12f).coerceAtMost(32f).dp,
+        inlineMix,
+    )
     val glyphSize = lerpDp(EXPANDED_GLYPH_SIZE, 24.dp, inlineMix)
 
     Box(
@@ -610,22 +618,25 @@ fun GlassMiniPlayer(
             // sedangkan di sini tidak ada yang meregangkannya (inline 40dp, expanded 48dp).
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 40.dp)
-                .then(Modifier.liquidGlass(shape = pillShape, edgeDepth = NAV_EDGE_DEPTH)),
+                .heightIn(min = (GlassBarMetrics.layout.tabIconSize + 20f).dp)
+                .then(Modifier.liquidGlass(shape = pillShape, edgeDepth = GlassBarMetrics.layout.edgeDepth)),
         )
     }
 }
 
 /** The collapsed row's margin at either side of the screen, and its items' spacing. */
-private val INLINE_GUTTER = 28.dp
-private val INLINE_SPACING = 14.dp
+private val INLINE_GUTTER: androidx.compose.ui.unit.Dp
+    get() = GlassBarMetrics.layout.inlineGutter.dp
+private val INLINE_SPACING: androidx.compose.ui.unit.Dp
+    get() = GlassBarMetrics.layout.inlineGap.dp
 
 /**
  * Half the difference between the expanded tab row, 62dp, and the collapsed
  * one, 48 — a 28dp glyph in 10dp of padding — so the one folds onto the
  * other's centre line.
  */
-private val INLINE_LIFT = 7.dp
+private val INLINE_LIFT: androidx.compose.ui.unit.Dp
+    get() = GlassBarMetrics.layout.inlineLift.dp
 
 /**
  * The accessory's type, measured off Apple's, collapsed and expanded alike:
@@ -633,7 +644,8 @@ private val INLINE_LIFT = 7.dp
  * these sizes — the title less so than measured, tuned by eye on device: in
  * Semibold +0.4 read loose and the cut's own spacing tight.
  */
-private val ACCESSORY_TITLE_SIZE = 13.sp
+private val ACCESSORY_TITLE_SIZE: androidx.compose.ui.unit.TextUnit
+    get() = GlassBarMetrics.layout.playerTitleSize.sp
 
 /**
  * W700, which in this app's family draws the Semibold cut (see SFProDisplay):
@@ -642,18 +654,19 @@ private val ACCESSORY_TITLE_SIZE = 13.sp
  */
 private val ACCESSORY_TITLE_WEIGHT = FontWeight.W700
 private val ACCESSORY_TITLE_TRACKING = 0.15.sp
-private val ACCESSORY_ARTIST_SIZE = 12.sp
+private val ACCESSORY_ARTIST_SIZE: androidx.compose.ui.unit.TextUnit
+    get() = GlassBarMetrics.layout.playerArtistSize.sp
 private val ACCESSORY_ARTIST_TRACKING = 0.35.sp
 
 /** The accessory's artwork, about Apple's 30pt at both densities, and its corner. */
-private val ACCESSORY_ART_SIZE = 30.4.dp
+private val ACCESSORY_ART_SIZE: androidx.compose.ui.unit.Dp
+    get() = GlassBarMetrics.layout.playerArt.dp
 private val ACCESSORY_ART_CORNER = 5.7.dp
 
 /** The expanded play glyph: its triangle about Apple's 15pt tall. */
 private val EXPANDED_GLYPH_SIZE = 29.dp
 
-/** Seberapa dalam tepi glass bar dan player: lensa lebih lebar, rim lebih tebal, ada inner glow. */
-private const val NAV_EDGE_DEPTH = 1.9f
+/** Kedalaman tepi glass bar dan player diatur di Settings > Liquid Glass (GlassBarLayout.edgeDepth). */
 
 /**
  * A tab's content drawn in the unselected colour, with the selected colour masked

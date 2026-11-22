@@ -730,8 +730,8 @@ private fun SharedTransitionScope.InlineTab(
                 color = colors.backgroundColor,
                 shape = shapes.tabBarShape
             )
-            .clip(shapes.tabBarShape)
             .then(tabBarContentModifier())
+            .clip(shapes.tabBarShape)
             .clickable(
                 // Sentuhan pertama hanya membuka bar ke bentuk expanded (mini
                 // player kembali di atas). Pindah tab baru terjadi di sentuhan
@@ -880,8 +880,8 @@ private fun SharedTransitionScope.StandaloneTabBody(
                         color = colors.backgroundColor,
                         shape = shapes.standaloneTabShape
                     )
-                    .clip(shapes.standaloneTabShape)
                     .then(tabBarContentModifier())
+                    .clip(shapes.standaloneTabShape)
                     .clickable(
                         onClick = standaloneTab.onClick,
                         indication = standaloneTab.indication?.invoke(),
@@ -930,8 +930,7 @@ private fun SharedTransitionScope.InlineAccessory(
                         shape = shapes.accessoryShape,
                         elevation = elevations.inlineElevation
                     )
-                    .background(color = colors.accessoryBackgroundColor, shapes.accessoryShape)
-                    .clip(shapes.accessoryShape),
+                    .background(color = colors.accessoryBackgroundColor, shapes.accessoryShape),
                 animatedVisibilityScope
             )
         }
@@ -1054,8 +1053,7 @@ private fun SharedTransitionScope.ExpandedAccessory(
                     shape = shapes.accessoryShape,
                     elevation = elevations.expandedElevation
                 )
-                .background(color = colors.accessoryBackgroundColor, shapes.accessoryShape)
-                .clip(shapes.accessoryShape),
+                .background(color = colors.accessoryBackgroundColor, shapes.accessoryShape),
             animatedVisibilityScope
         )
     }
