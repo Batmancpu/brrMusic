@@ -322,6 +322,12 @@ private const val MESH_REFRESH_MS = 3_000L
  */
 private const val LIVE_BLUR_REFRESH_MS = 160L
 
+/** Legacy mesh only tints the cover edge off the clip: a slow readback is enough. */
+private const val LEGACY_MESH_EDGE_REFRESH_MS = 480L
+
+/** Longer than the mesh's 3.5s colour fade, so the fade can finish and the blur can rest. */
+private const val LEGACY_MESH_PALETTE_REFRESH_MS = 6_000L
+
 /** Longest edge of a live blur frame: it is blurred and stretched, so small is enough. */
 private const val LIVE_BLUR_CAPTURE_PX = 96
 
@@ -1271,7 +1277,7 @@ fun NowPlayingScreen(
     val liveReduceMotion by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
     val meshRefreshMs: Long? = when {
         liveReduceMotion -> MESH_REFRESH_MS
-        legacyMesh -> LIVE_BLUR_REFRESH_MS
+        legacyMesh -> LEGACY_MESH_EDGE_REFRESH_MS
         liveReduceBlur -> MESH_REFRESH_MS
         else -> LIVE_BLUR_REFRESH_MS
     }
@@ -1281,7 +1287,7 @@ fun NowPlayingScreen(
     val acceptCanvasFrame: (ImageBitmap) -> Unit = { frame ->
         canvasEdgeFrame = frame
         val nowMs = System.nanoTime() / 1_000_000L
-        if (!legacyMesh || canvasFrame == null || nowMs - meshFrameClock[0] >= MESH_REFRESH_MS) {
+        if (!legacyMesh || canvasFrame == null || nowMs - meshFrameClock[0] >= LEGACY_MESH_PALETTE_REFRESH_MS) {
             meshFrameClock[0] = nowMs
             canvasFrame = frame
         }
@@ -3125,6 +3131,8 @@ fun NowPlayingScreen(
                         driftMillis = 20_000,
                         colorFadeMillis = 3_500,
                         matchSeam = (fullBleedArt || canvasHero) && heroMode && !lyricsOpen && !queueOpen && !queueShowing,
+                        // Klip sedang tampil: blob diam supaya blur layar penuh tidak digambar ulang tiap frame.
+                        paused = canvas != null && canvasRendered,
                         modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
                     )
                     // Sambungan tepi cover tetap tampil di lagu ber-canvas (canvasHero)
