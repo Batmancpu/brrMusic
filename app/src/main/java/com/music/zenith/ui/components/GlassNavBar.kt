@@ -151,7 +151,9 @@ val haptics = rememberHaptics()
     // A factory, not a value — see the note in FloatingTabBar's header. Each of
     // the three surfaces gets its own glass modifier and so its own shape cache.
     // The theme's own glass tint, as the liquid top bar has it — no white wash.
-    val glassSurface: @Composable () -> Modifier = { Modifier.liquidGlass(shape = pillShape) }
+    val glassSurface: @Composable () -> Modifier = {
+        Modifier.liquidGlass(shape = pillShape, edgeDepth = NAV_EDGE_DEPTH)
+    }
 
     // Seberapa terbuka player (0..1), dibaca saat draw oleh tab bar untuk
     // mendorong tab ke bawah (expanded) atau ke kiri/kanan (inline).
@@ -386,7 +388,7 @@ private fun GlassNowPlaying(
     // [inlineProgress] is the blend itself when given: no second spring that starts
     // late or settles apart from the bar it is following.
     val inlineMix = inlineProgress?.invoke() ?: inlineMixSpring
-    val glyphSlot = lerpDp(40.dp, 32.dp, inlineMix)
+    val glyphSlot = lerpDp(34.dp, 32.dp, inlineMix)
     val glyphSize = lerpDp(EXPANDED_GLYPH_SIZE, 24.dp, inlineMix)
 
     Box(
@@ -608,8 +610,8 @@ fun GlassMiniPlayer(
             // sedangkan di sini tidak ada yang meregangkannya (inline 40dp, expanded 48dp).
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .then(Modifier.liquidGlass(shape = pillShape)),
+                .heightIn(min = 40.dp)
+                .then(Modifier.liquidGlass(shape = pillShape, edgeDepth = NAV_EDGE_DEPTH)),
         )
     }
 }
@@ -649,6 +651,9 @@ private val ACCESSORY_ART_CORNER = 5.7.dp
 
 /** The expanded play glyph: its triangle about Apple's 15pt tall. */
 private val EXPANDED_GLYPH_SIZE = 29.dp
+
+/** Seberapa dalam tepi glass bar dan player: lensa lebih lebar, rim lebih tebal, ada inner glow. */
+private const val NAV_EDGE_DEPTH = 1.9f
 
 /**
  * A tab's content drawn in the unselected colour, with the selected colour masked

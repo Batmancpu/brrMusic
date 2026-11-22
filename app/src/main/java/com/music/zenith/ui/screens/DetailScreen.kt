@@ -162,6 +162,9 @@ import com.music.zenith.data.canvas.AppleArtistArt
 import com.music.zenith.data.DebugLog as Log
 import com.music.zenith.data.canvas.AppleAlbumInfoRepository
 import com.music.zenith.data.canvas.audioQualityLabel
+import com.music.zenith.sharedui.resources.Res as SharedRes
+import com.music.zenith.sharedui.resources.ic_lossless
+import org.jetbrains.compose.resources.painterResource
 import com.music.zenith.data.canvas.AppleArtistArtRepository
 import com.music.zenith.data.canvas.releaseDateText
 import com.music.zenith.data.canvas.appleCatalogue
@@ -1058,11 +1061,10 @@ private fun ReleaseHeader(
 ) {
     val (credit, listMeta) = page.headerLines(songs.size, songs.playtime())
     // Apple Music: "Jazz • 2023". Jumlah lagu dan durasi pindah ke kaki halaman.
-    val meta = if (page.type == BrowseType.ALBUM && !page.browseId.startsWith("local:")) {
-        listOfNotNull(page.albumMeta(albumGenre).ifBlank { null }, albumQuality).joinToString(" • ")
-    } else {
-        listMeta
-    }
+    val isCatalogAlbum = page.type == BrowseType.ALBUM && !page.browseId.startsWith("local:")
+    // Kualitas dipisah dari teks meta supaya bisa diberi icon sendiri.
+    val albumQualityShown = albumQuality.takeIf { isCatalogAlbum }
+    val meta = if (isCatalogAlbum) page.albumMeta(albumGenre) else listMeta
     // Liked Music dan Most Played tidak memakai sleeve berbingkai: seninya full-bleed.
     val albumHero = page.isAlbumHero()
     val mixHero = page.isMixHero()
@@ -1261,17 +1263,41 @@ private fun ReleaseHeader(
                     },
             )
         }
-        if (meta.isNotBlank()) {
+        if (meta.isNotBlank() || albumQualityShown != null) {
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = meta,
-                style = MaterialTheme.typography.labelMedium,
-                color = palette.onBackgroundVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Row(
                 modifier = Modifier.flightReveal(240, afterFlight = page.covers.isNotEmpty()).padding(horizontal = HEADER_GUTTER),
-            )
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val metaStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Light)
+                if (meta.isNotBlank()) {
+                    Text(
+                        text = if (albumQualityShown != null) "$meta • " else meta,
+                        style = metaStyle,
+                        color = palette.onBackgroundVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                if (albumQualityShown != null) {
+                    // Gelombang lossless yang sama dengan badge di player.
+                    Icon(
+                        painter = painterResource(SharedRes.drawable.ic_lossless),
+                        contentDescription = null,
+                        tint = palette.onBackgroundVariant,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = albumQualityShown,
+                        style = metaStyle,
+                        color = palette.onBackgroundVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
         }
 
         // Only where YouTube said the release can be saved and the caller

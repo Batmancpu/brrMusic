@@ -79,8 +79,8 @@ class SourceMenuRequest(
 )
 
 /** The bar at rest: the tab pill and the Search circle are both 62dp tall. */
-private val BAR_ROW_HEIGHT = 62.dp
-private val BAR_CIRCLE = 62.dp
+private val BAR_ROW_HEIGHT = 55.dp
+private val BAR_CIRCLE = 55.dp
 private val BAR_SPACING = 8.dp
 
 /** The bar once the field is open: a 48dp circle for the last tab and the field beside it. */
