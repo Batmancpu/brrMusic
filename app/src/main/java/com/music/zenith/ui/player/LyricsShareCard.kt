@@ -12,8 +12,15 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Shader
+import com.motion.lyrics.HeadOut
+import com.motion.lyrics.MotionTuning
+import com.motion.lyrics.MotionWord
+import com.motion.lyrics.computeHead
+import com.motion.lyrics.smoothstep
+import com.motion.lyrics.toMotionWords
 import com.music.zenith.data.lyrics.CharGrowth
 import com.music.zenith.data.lyrics.LyricLine
+import com.music.zenith.data.settings.AppSettings
 import com.music.zenith.ui.replay.Fonts
 import com.music.zenith.ui.replay.drawArtwork
 import com.music.zenith.ui.replay.drawBackdrop
@@ -79,98 +86,74 @@ internal suspend fun lyricsCardPainter(
     story: Boolean = false,
     /** No backdrop: the card alone, to lay over a video. */
     transparent: Boolean = false,
+    /** The Zenith mark at the top right; without it the passage moves up into its room. */
+    showLogo: Boolean = true,
 ): LyricsCardPainter = withContext(Dispatchers.Default) {
     val type = Fonts(context)
     val cover = card.artworkUrl?.let { loadBitmap(context, it) }
 
     // ── Sizing ──────────────────────────────────────────────────────────────
-    val chrome = OUTER_TOP + PANEL_PAD_V * 2 + FOOTER_H + BRAND_BAND
+    val headTop = if (showLogo) HEADER_BOTTOM + GAP_ABOVE_BODY else FOOTER_PAD
+    val chrome = headTop + GAP_BELOW_BODY + FOOTER_THUMB + FOOTER_PAD
     val frameRoom = MAX_CARD_H - chrome
     val plan = fittestPlan(type, card.lines, frameRoom)
-    // A story pads the frame to 9:16 and keeps the whole panel centred in it.
+    // Flat layout, no panel: the words sit straight on the backdrop with the
+    // song credit under them. A story pads the frame to 9:16 and keeps the
+    // whole block centred in it.
     val naturalH = chrome + plan.content
     val cardH = if (story) maxOf(MAX_CARD_H, naturalH) else naturalH
-    val spare = cardH - naturalH
-    val panelTop = OUTER_TOP + spare / 2
-    val bodyTop = panelTop + PANEL_PAD_V
+    val shift = (cardH - naturalH) / 2f
+    val bodyTop = headTop + shift
     val bodyBottom = bodyTop + plan.content
-    val footerTop = bodyBottom + PANEL_PAD_V
-    val panelBottom = footerTop + FOOTER_H
+    val thumbY = bodyBottom + GAP_BELOW_BODY
 
     val bitmap = Bitmap.createBitmap(CARD_W, cardH.roundToInt(), Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     if (!transparent) drawBackdrop(canvas, cover, 0f, cardH)
 
-    // ── Panel ───────────────────────────────────────────────────────────────
-    val panel = RectF(CARD_MARGIN, panelTop, CARD_W - CARD_MARGIN, panelBottom)
-    val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    fill.color = 0x59000000
-    canvas.drawRoundRect(panel, PANEL_RADIUS, PANEL_RADIUS, fill)
-    fill.color = 0x0FFFFFFF
-    canvas.drawRoundRect(panel, PANEL_RADIUS, PANEL_RADIUS, fill)
-    // The song strip: a darker band whose bottom corners follow the panel.
-    val footerPath = Path().apply {
-        addRoundRect(
-            RectF(panel.left, footerTop, panel.right, panelBottom),
-            floatArrayOf(
-                0f, 0f, 0f, 0f,
-                PANEL_RADIUS, PANEL_RADIUS, PANEL_RADIUS, PANEL_RADIUS,
-            ),
-            Path.Direction.CW,
-        )
+    // ── Brand ───────────────────────────────────────────────────────────────
+    // Top right. The Z is drawn at the word's own cap height, sits on its
+    // baseline (nudged down by LOGO_DROP) and stays close to the word.
+    if (showLogo) {
+        val brand = type.heading(46f, 0xE6FFFFFF.toInt())
+        val brandBaseline = HEADER_BASELINE + shift
+        val capBounds = android.graphics.Rect().also { brand.getTextBounds("Z", 0, 1, it) }
+        val logoH = capBounds.height().toFloat()
+        val logoW = logoH * LOGO_ASPECT
+        val brandWidth = logoW + LOGO_GAP + brand.measureText(BRAND)
+        val brandLeft = CARD_W - CARD_MARGIN - brandWidth
+        drawLogo(canvas, context, brandLeft + logoW, brandBaseline + LOGO_DROP, logoW, logoH)
+        canvas.drawText(BRAND, brandLeft + logoW + LOGO_GAP, brandBaseline, brand)
     }
-    fill.color = 0x33000000
-    canvas.drawPath(footerPath, fill)
-    val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 2f
-        color = 0x26FFFFFF
-    }
-    canvas.drawRoundRect(
-        RectF(panel.left + 1f, panel.top + 1f, panel.right - 1f, panel.bottom - 1f),
-        PANEL_RADIUS,
-        PANEL_RADIUS,
-        edge,
-    )
 
     // ── The passage ─────────────────────────────────────────────────────────
     // Only placed here; the painter draws each row, lit or not, per frame.
-    val textLeft = CARD_MARGIN + PANEL_PAD
     val placed = ArrayList<PlacedRow>(plan.rows.size)
     var y = bodyTop
     for (row in plan.rows) {
         val baseline = y + row.gapBefore - row.paint.ascent() +
             if (row.isGap) row.paint.textSize * GAP_MARKER_OFFSET else 0f
-        val x = if (row.centered) CARD_W / 2f else textLeft
+        val x = if (row.centered) CARD_W / 2f else CARD_MARGIN
         placed += PlacedRow(row, x, baseline)
         y += row.gapBefore + row.height
     }
 
-    // ── Song strip ──────────────────────────────────────────────────────────
-    val thumbY = footerTop + (FOOTER_H - FOOTER_THUMB) / 2f
-    drawArtwork(canvas, cover, card.song.title, textLeft, thumbY, FOOTER_THUMB, false, 0.12f)
-    val textX = textLeft + FOOTER_THUMB + 32f
-    val room = panel.right - PANEL_PAD - textX
-    val title = type.body(46f, Color.WHITE, bold = true)
-    canvas.drawText(ellipsised(card.song.title, title, room), textX, thumbY + 54f, title)
-    val artist = type.body(40f, 0x99FFFFFF.toInt())
-    canvas.drawText(ellipsised(card.song.artist, artist, room), textX, thumbY + 104f, artist)
+    // ── Song credit ─────────────────────────────────────────────────────────
+    drawArtwork(canvas, cover, card.song.title, CARD_MARGIN, thumbY, FOOTER_THUMB, false, 0.12f)
+    val textX = CARD_MARGIN + FOOTER_THUMB + 34f
+    val room = CARD_W - CARD_MARGIN - textX
+    val title = type.body(50f, Color.WHITE, bold = true)
+    canvas.drawText(ellipsised(card.song.title, title, room), textX, thumbY + 74f, title)
+    val artist = type.body(42f, 0x99FFFFFF.toInt())
+    canvas.drawText(ellipsised(card.song.artist, artist, room), textX, thumbY + 132f, artist)
 
-    // ── Brand ───────────────────────────────────────────────────────────────
-    // Under the panel, centred, where Apple Music puts its own mark.
-    val brand = type.heading(36f, 0xB3FFFFFF.toInt())
-    val brandBaseline = panelBottom + 88f
-    // The mark is drawn at the word's own cap height and sits on its baseline,
-    // so the Z and "Zenith" read as one lockup.
-    val capBounds = android.graphics.Rect().also { brand.getTextBounds("Z", 0, 1, it) }
-    val logoH = capBounds.height().toFloat()
-    val logoW = logoH * LOGO_ASPECT
-    val brandWidth = logoW + LOGO_GAP + brand.measureText(BRAND)
-    val brandLeft = (CARD_W - brandWidth) / 2f
-    drawLogo(canvas, context, brandLeft + logoW, brandBaseline, logoW, logoH)
-    canvas.drawText(BRAND, brandLeft + logoW + LOGO_GAP, brandBaseline, brand)
-
-    LyricsCardPainter(CardLayout(bitmap.width, bitmap.height, bitmap, placed), card.lines)
+    // The lyric effect follows what the user has chosen in Settings.
+    LyricsCardPainter(
+        CardLayout(bitmap.width, bitmap.height, bitmap, placed),
+        card.lines,
+        liquid = AppSettings.liquidFlow.value,
+        sparkle = AppSettings.lyricsSparkle.value,
+    )
 }
 
 /**
@@ -216,6 +199,10 @@ internal class CardLayout internal constructor(
 internal class LyricsCardPainter internal constructor(
     private val layout: CardLayout,
     private val lines: List<LyricsShareLine>,
+    /** The user's LiquidFlow setting: the Motion effect instead of the default sweep. */
+    private val liquid: Boolean = false,
+    /** The user's sparkle setting, honoured while [liquid] is on. */
+    private val sparkle: Boolean = true,
 ) {
     val width: Int get() = layout.width
     val height: Int get() = layout.height
@@ -225,6 +212,10 @@ internal class LyricsCardPainter internal constructor(
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fade = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
     private val growth = CharGrowth()
+    private val headOut = HeadOut()
+    private val halo = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val motionWords = HashMap<Int, List<MotionWord>>()
+    private val clusterCache = HashMap<Row, IntArray>()
 
     /** Each line's place among the sung lines (gaps don't count), for the falloff. */
     private val rank = IntArray(lines.size).also { ranks ->
@@ -272,6 +263,15 @@ internal class LyricsCardPainter internal constructor(
         val alpha = row.paint.alpha * LINE_FALLOFF[distance]
         val start = line.startMs ?: timing?.timeMs ?: 0L
         val swept = timing != null && timing.isWordSynced && !row.rtl
+
+        // LiquidFlow on: the same Motion effect the lyrics panel draws.
+        if (liquid && !row.isSub && !row.rtl && timing != null && timing.isWordSynced && timing.timingSource == null) {
+            val words = motionWords.getOrPut(row.line) { timing.toMotionWords() }
+            if (words.isNotEmpty()) {
+                drawLiquid(canvas, placed, positionMs, timing, words, alpha)
+                return
+            }
+        }
 
         if (!swept) {
             // No word timings (or a script the sweep can't follow): the line
@@ -386,6 +386,192 @@ internal class LyricsCardPainter internal constructor(
         run(cursor, text.length, 0f)
     }
 
+    /** Start and end offsets of each visible grapheme in [row], flattened. */
+    private fun clustersOf(row: Row): IntArray = clusterCache.getOrPut(row) {
+        val out = ArrayList<Int>()
+        val breaker = android.icu.text.BreakIterator.getCharacterInstance()
+        breaker.setText(row.text)
+        var s = breaker.first()
+        var e = breaker.next()
+        while (e != android.icu.text.BreakIterator.DONE) {
+            if (!row.text[s].isWhitespace()) {
+                out.add(s)
+                out.add(e)
+            }
+            s = e
+            e = breaker.next()
+        }
+        out.toIntArray()
+    }
+
+    /**
+     * The LiquidFlow effect on a canvas, letter by letter: rise, swell, the soft
+     * glow behind the karaoke head, the feathered sweep and (when enabled) the
+     * sparkle — the lyrics panel's own numbers, taken at [pos] directly.
+     */
+    private fun drawLiquid(
+        canvas: Canvas,
+        placed: PlacedRow,
+        pos: Long,
+        timing: LyricLine,
+        words: List<MotionWord>,
+        alpha: Float,
+    ) {
+        val row = placed.row
+        val paint = row.paint
+        val text = row.text
+        val size = paint.textSize
+        val bounds = clustersOf(row)
+        val n = bounds.size / 2
+        if (n == 0) return
+        computeHead(words, pos, headOut)
+        val head = headOut.head
+        val sung = headOut.sung
+        val riseDist = size * MotionTuning.RiseDistanceEm
+        val top = placed.baseline + paint.ascent()
+        val bottom = placed.baseline + paint.descent()
+        val midY = (top + bottom) / 2f
+        val activeAlpha = alpha.roundToInt().coerceIn(0, 255)
+        val inactiveAlpha = (alpha * (if (pos >= timing.endMs) 1f else UNSUNG_ALPHA)).roundToInt().coerceIn(0, 255)
+        val rgb = paint.color and 0x00FFFFFF
+        val firstStart = words.first().startMs
+
+        val rise = FloatArray(n)
+        val swell = FloatArray(n)
+        val lefts = FloatArray(n)
+        val rights = FloatArray(n)
+        val wordAt = IntArray(n)
+        for (k in 0 until n) {
+            val s = bounds[k * 2]
+            val e = bounds[k * 2 + 1]
+            lefts[k] = placed.x + paint.measureText(text, 0, s)
+            rights[k] = placed.x + paint.measureText(text, 0, e)
+            val c = (row.start + s).toFloat()
+            val wi = words.indexOfFirst { c >= it.charStart && c < it.charEnd }
+            wordAt[k] = wi
+            var riseTarget = 1f
+            var swellTarget = 0f
+            if (wi >= 0) {
+                val w = words[wi]
+                val through = (head - w.charStart) / (w.charEnd - w.charStart).coerceAtLeast(1).toFloat()
+                val wordRise = smoothstep(through / MotionTuning.RiseCompleteAt)
+                val letterRise = if (head >= w.charEnd) 1f else
+                    smoothstep((head - c + MotionTuning.LetterRiseLeadChars) / MotionTuning.LetterRiseSpanChars)
+                riseTarget = wordRise + (letterRise - wordRise) * MotionTuning.LetterRiseShare
+                val hold = smoothstep(((w.endMs - w.startMs) - MotionTuning.HoldMinMs) / MotionTuning.HoldRangeMs)
+                val tail = if (pos > w.endMs) (pos - w.endMs) / 1000f * MotionTuning.SwellTailCharsPerSec else 0f
+                val sw = (head - c + MotionTuning.LetterSwellLeadChars + tail) / MotionTuning.LetterSwellSpanChars
+                swellTarget = hold *
+                    smoothstep(sw / MotionTuning.SwellAttackFraction) *
+                    smoothstep((1f - sw) / MotionTuning.SwellReleaseFraction)
+            }
+            if (pos < firstStart) swellTarget = 0f
+            rise[k] = riseTarget
+            swell[k] = swellTarget
+        }
+
+        // Glow first, under the letters, fading continuously.
+        val glowR = size * MotionTuning.GlowRadiusEm
+        for (k in 0 until n) {
+            val swc = swell[k].coerceIn(0f, 1f)
+            val c = (row.start + bounds[k * 2]).toFloat()
+            val prox = 1f - smoothstep(kotlin.math.abs(head - c - 1f) / MotionTuning.GlowSpanChars)
+            val a = (sung * prox * (0.35f + 0.65f * swc) * MotionTuning.GlowAlphaScale * (activeAlpha / 255f))
+                .coerceIn(0f, 1f)
+            if (a < 0.004f) continue
+            val cx = (lefts[k] + rights[k]) / 2f
+            val cy = midY + (1f - rise[k]) * riseDist
+            val rad = glowR * (1f + 0.15f * swc)
+            halo.shader = android.graphics.RadialGradient(
+                cx, cy, rad,
+                intArrayOf(
+                    ((a * 255).roundToInt() shl 24) or rgb,
+                    ((a * 0.45f * 255).roundToInt() shl 24) or rgb,
+                    rgb,
+                ),
+                floatArrayOf(0f, 0.45f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+            canvas.drawCircle(cx, cy, rad, halo)
+        }
+        halo.shader = null
+
+        val feather = (size * MotionTuning.SweepFeatherEm).coerceAtLeast(1f)
+        for (k in 0 until n) {
+            val s = bounds[k * 2]
+            val e = bounds[k * 2 + 1]
+            val left = lefts[k]
+            val w = rights[k] - left
+            val dy = (1f - rise[k]) * riseDist
+            val scale = 1f + MotionTuning.SwellScale * swell[k]
+            val px = left + w / 2f
+            val dist = (head - (row.start + s)) / (e - s).coerceAtLeast(1)
+            val wi = wordAt[k]
+            val wordDone = wi >= 0 && head >= words[wi].charEnd - 0.001f
+
+            canvas.save()
+            canvas.translate(0f, dy)
+            canvas.scale(scale, scale, px, midY)
+            scratch.set(paint)
+            scratch.shader = null
+            scratch.alpha = inactiveAlpha
+            canvas.drawText(text, s, e, left, placed.baseline, scratch)
+
+            val hx = dist * w
+            val front = feather * 0.6f
+            val back = feather * 0.4f
+            val reached = hx + front > 0f
+            val settled = hx - back >= w
+            if (settled || wordDone) {
+                scratch.alpha = activeAlpha
+                canvas.drawText(text, s, e, left, placed.baseline, scratch)
+            } else if (reached) {
+                fun tone(a: Float) = ((activeAlpha * a).roundToInt() shl 24) or rgb
+                scratch.shader = LinearGradient(
+                    left + hx - back, 0f, left + hx + front, 0f,
+                    intArrayOf(tone(1f), tone(0.96f), tone(0.72f), tone(0.30f), tone(0.07f), tone(0f)),
+                    floatArrayOf(0f, 0.30f, 0.55f, 0.78f, 0.92f, 1f),
+                    Shader.TileMode.CLAMP,
+                )
+                scratch.alpha = 255
+                canvas.drawText(text, s, e, left, placed.baseline, scratch)
+                scratch.shader = null
+            }
+            canvas.restore()
+
+            if (sparkle && swell[k] > 0.01f) {
+                drawSparkles(canvas, row.start + k, px, top + dy, w, size, pos / 1000f, rgb, smoothstep(swell[k] / 0.35f))
+            }
+        }
+    }
+
+    /** The glimmers around a held letter, drifting up and fading. */
+    private fun drawSparkles(
+        canvas: Canvas,
+        index: Int,
+        cx: Float,
+        top: Float,
+        w: Float,
+        size: Float,
+        timeSec: Float,
+        rgb: Int,
+        strength: Float,
+    ) {
+        for (k in 0 until MotionTuning.ParticleCount) {
+            val seed = index * 31 + k * 17
+            val phase = (timeSec * MotionTuning.ParticleSpeed + hash01(seed)) % 1f
+            val x = cx + (hash01(seed + 7) - 0.5f) * (w + size * 0.5f)
+            val y = top + size * 0.2f - phase * size * MotionTuning.ParticleRiseEm
+            val a = kotlin.math.sin(Math.PI * phase).toFloat() * strength
+            val r = size * 0.028f * (0.6f + hash01(seed + 13))
+            halo.shader = null
+            halo.color = (((a * 0.12f).coerceIn(0f, 1f) * 255).roundToInt() shl 24) or rgb
+            canvas.drawCircle(x, y, r * 2.6f, halo)
+            halo.color = (((a * 0.75f).coerceIn(0f, 1f) * 255).roundToInt() shl 24) or rgb
+            canvas.drawCircle(x, y, r, halo)
+        }
+    }
+
     /** Where [chars] characters into [row] falls, from the row's left edge. */
     private fun sweepX(row: Row, chars: Float, spans: List<IntRange>): Float {
         val text = row.text
@@ -413,6 +599,14 @@ private const val FEATHER_RATIO = 30f / 34f
 private const val RISE_RATIO = 2f / 34f
 private const val HEADROOM_RATIO = 0.35f
 private const val GLOW_RATIO = 6f / 34f
+
+/** A repeatable pseudo-random 0..1 from [n], so a sparkle sits where it did last frame. */
+private fun hash01(n: Int): Float {
+    var x = n * 374761393 + 668265263
+    x = (x xor (x ushr 13)) * 1274126177
+    x = x xor (x ushr 16)
+    return (x and 0xFFFF) / 65535f
+}
 
 private fun isRtl(text: String): Boolean =
     !java.text.Bidi(text, java.text.Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT).baseIsLeftToRight()
@@ -574,24 +768,25 @@ private const val CARD_W = 1080
  */
 private const val MAX_CARD_H = 1920f
 
-/** Side margin around the panel, and the padding inside it. */
-private const val CARD_MARGIN = 56f
-private const val PANEL_PAD = 56f
-private const val PANEL_PAD_V = 64f
-private const val PANEL_RADIUS = 56f
-private const val CARD_CONTENT_W = CARD_W - (CARD_MARGIN + PANEL_PAD) * 2
+/** Side margin of the passage and of the song credit. */
+private const val CARD_MARGIN = 72f
+private const val CARD_CONTENT_W = CARD_W - CARD_MARGIN * 2
 
-private const val LOGO_GAP = 20f
+/** Gap between the Z and the word, and how far the Z is lowered onto the word's baseline. */
+private const val LOGO_GAP = 12f
+private const val LOGO_DROP = 5f
 private const val BRAND = "Music"
 private const val LOGO_ASPECT = 730f / 484f
 
-/** Air above the panel, and the band under it that holds the brand. */
-private const val OUTER_TOP = 56f
-private const val BRAND_BAND = 132f
+/** The mark's row at the top right, and the air around the passage. */
+private const val HEADER_BASELINE = 132f
+private const val HEADER_BOTTOM = 170f
+private const val GAP_ABOVE_BODY = 20f
+private const val GAP_BELOW_BODY = 20f
 
-/** The song strip at the foot of the panel, and the sleeve square in it. */
-private const val FOOTER_H = 216f
-private const val FOOTER_THUMB = 128f
+/** The song credit at the foot: the sleeve square and the margin under it. */
+private const val FOOTER_THUMB = 160f
+private const val FOOTER_PAD = 96f
 
 /** Smallest the translation line is allowed to get before it stops being legible. */
 private const val SUB_FLOOR = 24f

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.Download
 import com.music.zenith.ui.icons.SfIcons
@@ -52,7 +54,10 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.zenith.ui.components.IosSwitch
 import com.music.zenith.data.canvas.CanvasRepository
 import com.music.zenith.data.settings.AppSettings
 import com.music.zenith.ui.screens.SegmentedControl
@@ -117,13 +122,15 @@ internal fun AndroidLyricsShareSheet(
     // The card laid out once and drawable at any moment of the song: the
     // preview runs it on the song's own clock, so what is shared is what was seen.
     var painter by remember(request) { mutableStateOf<LyricsCardPainter?>(null) }
-    LaunchedEffect(request, story, activeClip != null) {
+    val showLogo by AppSettings.lyricsCardLogo.collectAsStateWithLifecycle()
+
+    LaunchedEffect(request, story, activeClip != null, showLogo) {
         image = null
         painter = null
         failed = false
         saved = false
         runCatching {
-            val paint = lyricsCardPainter(context, request, story, transparent = activeClip != null)
+            val paint = lyricsCardPainter(context, request, story, transparent = activeClip != null, showLogo = showLogo)
             image = withContext(Dispatchers.Default) { paint.render(null) }
             painter = paint
         }.onFailure { failed = true }
@@ -133,13 +140,13 @@ internal fun AndroidLyricsShareSheet(
     var exporting by remember(request) { mutableStateOf(false) }
     var exported by remember(request) { mutableStateOf<Pair<Any?, File>?>(null) }
     suspend fun videoFile(): File? {
-        val look = listOf(activeClip, story)
+        val look = listOf(activeClip, story, showLogo)
         exported?.takeIf { it.first == look && it.second.exists() }?.let { return it.second }
         exporting = true
         return try {
             // The export lays its own background (the clip, or the cover), so
             // the card it is handed is always the bare one.
-            val overlay = lyricsCardPainter(context, request, story, transparent = true)
+            val overlay = lyricsCardPainter(context, request, story, transparent = true, showLogo = showLogo)
             exportLyricsVideo(context, request, activeClip, overlay, portrait = story)
                 ?.also { exported = look to it }
         } finally {
@@ -242,6 +249,32 @@ internal fun AndroidLyricsShareSheet(
                     story = !story
                 },
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .toggleable(
+                        value = showLogo,
+                        role = Role.Switch,
+                        onValueChange = {
+                            haptics.play(Haptic.Tap)
+                            AppSettings.setLyricsCardLogo(it)
+                        },
+                    )
+                    .padding(start = 22.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.lyrics_share_show_logo),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f),
+                )
+                // The row is the toggle; the switch only shows its state.
+                IosSwitch(checked = showLogo, onCheckedChange = null)
+            }
 
             if (failed) {
                 Text(
