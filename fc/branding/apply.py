@@ -39,17 +39,37 @@ def xml_text(value, path):
         value)
 
 def lyrics_card(value, path):
-    # Remove the ENTIRE watermark block and its bottom gutter, not merely the word.
-    start, end = "    // ── Brand ─", "\n    bitmap\n"
-    if value.count(start) != 1 or value.count(end) != 1:
-        raise SystemExit("Lyrics card footer changed; refusing unsafe patch")
-    head, tail = value.split(start, 1)
-    watermark, rest = tail.split(end, 1)
-    if "drawLogo(" not in watermark or "canvas.drawText(BRAND" not in watermark:
-        raise SystemExit("Lyrics card watermark changed; refusing unsafe patch")
-    value = head + "    // No brand, icon or watermark in shared lyrics images.\n" + end + rest
-    return replace_once(value, "private const val BRAND_BAND = 132f",
-                        "private const val BRAND_BAND = 0f", path)
+    """Remove the visible logo/watermark; support both reviewed upstream layouts.
+
+    Zenith 2026-11-22 moved the mark from a footer band to the upper-right
+    header. Do not remove any panel/lyrics/song-drawing code.
+    """
+    marker = "    // ── Brand ─"
+    if value.count(marker) != 1:
+        raise SystemExit("Lyrics brand section changed; review patch before releasing")
+    if "private const val BRAND_BAND = 132f" in value:
+        # Older layout: brand sits below panel and has a dedicated height band.
+        end = "\n    bitmap\n"
+        if value.count(end) != 1:
+            raise SystemExit("Legacy lyrics footer layout changed; refusing patch")
+        head, tail = value.split(marker, 1)
+        removed, rest = tail.split(end, 1)
+        if "drawLogo(" not in removed or "canvas.drawText(BRAND" not in removed:
+            raise SystemExit("Legacy lyrics logo did not match reviewed layout")
+        value = head + "    // No visual watermark on shared lyrics.\\n" + end + rest
+        return replace_once(value, "private const val BRAND_BAND = 132f",
+                            "private const val BRAND_BAND = 0f", path)
+    # New layout: brand is a conditional header before the lyrics passage.
+    end = "    // ── The passage ─"
+    if value.count(end) != 1:
+        raise SystemExit("New lyrics passage anchor changed; refusing patch")
+    head, tail = value.split(marker, 1)
+    removed, rest = tail.split(end, 1)
+    required = ("if (showLogo)", "drawLogo(canvas, context,", "canvas.drawText(BRAND")
+    if not all(token in removed for token in required):
+        raise SystemExit("New lyrics header logo did not match reviewed layout")
+    return head + "    // No visual watermark on shared lyrics.\n" + end + rest
+
 
 def home(value, path):
     old = """            Wordmark(
