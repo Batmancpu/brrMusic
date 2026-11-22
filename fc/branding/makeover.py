@@ -150,6 +150,13 @@ def main() -> None:
         print("brrMusic visual makeover disabled")
         return
 
+    # Android 12+ shows the system launch surface before the Compose splash.
+    # Keep its first frame in the same midnight palette as the animation.
+    for qualifier in ("values", "values-night"):
+        theme_file = APP / "res" / qualifier / "themes.xml"
+        edit(theme_file, lambda value: once(value, "#FB4059", "#0B1020", "native splash background"))
+        ET.fromstring(theme_file.read_text(encoding="utf-8"))
+
     # These components are actually shown during start and on Home.
     edit(ROOT / "sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui/screens/AppSplash.kt", splash_text)
     edit(ROOT / "sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui/screens/Wordmark.kt", wordmark_text)
