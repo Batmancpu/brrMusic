@@ -61,6 +61,7 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaConstants
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaLibraryService.LibraryParams
@@ -1826,6 +1827,7 @@ class PlaybackService : MediaLibraryService() {
         )
             .setId(SESSION_ID)
             .setSessionActivity(sessionActivity())
+            .setSessionExtras(transportSlotReservations())
             .build()
         refreshCustomLayouts()
 
@@ -1833,6 +1835,19 @@ class PlaybackService : MediaLibraryService() {
         // whose queue is already restored.
         CastController.ensureStarted(this)
         CastController.attach(castPlayback)
+    }
+
+    /**
+     * Keeps Previous and Next in their places even while there is nowhere to go.
+     *
+     * Without these, Media3 moves the first custom button (Favorite) into the
+     * Back or Forward slot when Previous or Next is unavailable, so on the last
+     * song a tap on "Next" became a Like. With them set, an unavailable
+     * Previous or Next just leaves its slot empty or disabled.
+     */
+    private fun transportSlotReservations() = Bundle().apply {
+        putBoolean(MediaConstants.EXTRAS_KEY_SLOT_RESERVATION_SEEK_TO_PREV, true)
+        putBoolean(MediaConstants.EXTRAS_KEY_SLOT_RESERVATION_SEEK_TO_NEXT, true)
     }
 
     private fun newSessionPlayer(player: Player, crossfade: CrossfadeController) = SessionPlayer(
