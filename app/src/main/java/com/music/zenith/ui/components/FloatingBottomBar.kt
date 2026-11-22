@@ -117,7 +117,7 @@ private val GESTURE_BAR_FLOOR = 15.dp
  * numbers are a pair: change one and the bar's height moves unless the other
  * moves against it.
  */
-internal val TAB_VERTICAL_PADDING = 6.5.dp
+internal val TAB_VERTICAL_PADDING = 4.dp
 
 /** The gap between a tab's glyph and its label, in both bars. */
 internal val TAB_ICON_LABEL_GAP = 1.dp
@@ -127,7 +127,7 @@ internal val TAB_ICON_LABEL_GAP = 1.dp
  * larger share of it than these had at 25dp in 70; at 28 they come out at
  * Apple's sizes, and with the padding above the bar is 62dp.
  */
-internal val TAB_ICON_SIZE = 28.dp
+internal val TAB_ICON_SIZE = 24.dp
 
 /** A tab's label: Apple's 10pt, letter-spaced as SF Pro Text sets it. */
 @Composable
