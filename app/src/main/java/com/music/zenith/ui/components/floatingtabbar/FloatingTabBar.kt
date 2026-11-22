@@ -1232,7 +1232,13 @@ private fun SharedTransitionScope.ExpandedTabs(
                                 pressedTab[0] = tapped
                                 // Only the selected tab's pill lifts under a finger; pressing
                                 // another tab leaves the indicator alone until the tap carries it over.
-                                if (tapped != currentSelectedTabIndex) return@awaitEachGesture
+                                if (tapped != currentSelectedTabIndex) {
+                                    // A previous tap's release was cancelled above; a pill it
+                                    // left lifted must not stay up (stuck on the old tab) while
+                                    // the finger is on another one.
+                                    if (pill.isHeld) pill.release(currentSelectedTabIndex)
+                                    return@awaitEachGesture
+                                }
                                 pill.startDrag()
                                 var dragged = false
                                 while (true) {
