@@ -5632,6 +5632,8 @@ Spacer(Modifier.width(12.dp))
                                     onRevealPlayer = { queueControlsOpen = true },
                                     onHidePlayer = { queueControlsOpen = false },
                                     bottomFade = if (lyricStripEnabled) 28.dp else 14.dp,
+                                    // Tanpa strip lirik panel diukur 36dp lebih tinggi dari slotnya.
+                                    bottomInset = if (lyricStripEnabled) 0.dp else 36.dp,
                                     modifier = Modifier.weight(1f),
                                 )
                             }
