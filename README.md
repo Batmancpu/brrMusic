@@ -68,6 +68,10 @@ It inherits a capable music experience from [Zenith](https://github.com/rezapran
 > [!IMPORTANT]
 > **Spatial Audio here means stereo soundstage processing**—not Dolby Atmos, object-based surround or personalized HRTF binaural rendering. The experimental limiter checks sample peaks, **not true peaks**. Automated tests establish behavior and numerical safety; they do not prove a subjective sound-quality improvement on every device.
 
+### Headphone surround, even without Dolby hardware
+
+If your phone lacks an E-AC-3/Atmos decoder, the Dolby Atmos switch may remain unavailable. **Settings → Force headphone surround** gives you the existing *software stereo-widening* engine without requiring Dolby hardware. This bypasses only the spatial learner's Auto decision; it still respects speaker, DSP, actual Atmos-stream and bit-perfect safety gates. It is **not Dolby Atmos**, and does not turn a stereo mix into discrete object-based surround.
+
 ## What makes brrMusic different
 
 | Focus | What we've built or configured |
