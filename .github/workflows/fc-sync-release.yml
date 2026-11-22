@@ -304,6 +304,13 @@ jobs:
           set -euo pipefail
           python3 fc/spatial-audio/refinement/apply.py
           echo "enabled=$(sed -n 's/^enabled=//p' fc/spatial-audio/refinement/config.properties)" >> "$GITHUB_OUTPUT"
+      - name: Enable optional software headphone surround control
+        if: steps.decision.outputs.should_release == 'true'
+        run: |
+          set -euo pipefail
+          python3 -m py_compile fc/spatial-audio/headphone-force/apply.py
+          python3 -m unittest discover -s fc/spatial-audio/headphone-force -p 'test_*.py'
+          python3 fc/spatial-audio/headphone-force/apply.py
       - name: Fill missing Android locale fallbacks for this build
         if: steps.decision.outputs.should_release == 'true'
         run: |
