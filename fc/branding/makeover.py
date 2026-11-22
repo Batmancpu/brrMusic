@@ -128,14 +128,21 @@ def settings_footer(value: str) -> str:
 
 
 def repair_resource_labels(path: Path) -> None:
-    # The first branding layer replaces Zenith inside XML text, including
-    # historical storage paths; restore descriptive (not fictional) UI wording.
+    # Korean and other scripts join suffix characters directly to the product
+    # name; ASCII word-boundary replacement silently leaves these untranslated.
+    # Change ONLY text nodes, never XML attribute names, IDs or resource keys.
     def fix(value):
+        value = re.sub(
+            r'>([^<>]*)<',
+            lambda match: '>' + match.group(1).replace("Zenith", BRAND) + '<',
+            value,
+        )
+        # Historical storage must keep its actual on-disk path; describe it
+        # without claiming the old files were moved to a new branded folder.
         value = value.replace("Music/brrMusic", "Music downloads")
-        if "Zenith" in re.sub(r'(?s)<!--.*?-->', '', value):
-            text_nodes = re.findall(r'>([^<>]*)<', value)
-            if any("Zenith" in node for node in text_nodes):
-                raise SystemExit(f"Visible Zenith resource remained: {path.relative_to(ROOT)}")
+        text_nodes = re.findall(r'>([^<>]*)<', value)
+        if any("Zenith" in node for node in text_nodes):
+            raise SystemExit(f"Visible Zenith resource remained: {path.relative_to(ROOT)}")
         ET.fromstring(value)
         return value
     edit(path, fix)
