@@ -164,6 +164,23 @@ class SpatialAudioLearningTest {
     }
 
     @Test
+    fun headphoneForceOverridesAutoLearningButNeverAudioSafety() {
+        val negative = listOf(
+            example("one", SpatialAudioFeedback.OFF),
+            example("two", SpatialAudioFeedback.OFF),
+            example("three", SpatialAudioFeedback.OFF),
+            example("four", SpatialAudioFeedback.OFF),
+        )
+        assertFalse(decide(mode = SpatialAudioMode.AUTO, examples = negative).enabled)
+        val forced = decide(mode = SpatialAudioMode.ON, examples = negative)
+        assertTrue(forced.enabled)
+        assertEquals(SpatialAudioDecisionReason.GLOBAL_ON, forced.reason)
+        assertFalse(decide(mode = SpatialAudioMode.ON, examples = negative, speaker = true).enabled)
+        assertFalse(decide(mode = SpatialAudioMode.ON, examples = negative, atmos = true).enabled)
+        assertFalse(decide(mode = SpatialAudioMode.ON, examples = negative, dsp = false).enabled)
+    }
+
+    @Test
     fun disablingLearningStopsProfilingButKeepsEffectOn() {
         assertTrue(decide(learning = false).enabled)
         assertTrue(decide(mode = SpatialAudioMode.ON, learning = false).enabled)
