@@ -60,7 +60,7 @@ def home(value, path):
                 modifier = Modifier.padding(bottom = 14.dp),
             )"""
     new = """            Text(
-                text = "brrMusic",
+                text = "Music",
                 style = style,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
