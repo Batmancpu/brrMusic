@@ -113,6 +113,20 @@ def kotlin_ui_copy(value: str) -> str:
     return QUOTED.sub(rewrite, value)
 
 
+def settings_footer(value: str) -> str:
+    # The visible GitHub/developer links belong to this fork, while upstream
+    # receives an explicit attribution link (not falsely labelled as our Reddit).
+    value = once(value, 'context.openLink("https://github.com/rezapranata089-bit/Zenith")',
+                 'context.openLink("https://github.com/Batmancpu/brrMusic")', "project GitHub URL")
+    value = once(value, 'context.openLink("https://github.com/rezapranata089-bit")',
+                 'context.openLink("https://github.com/Batmancpu")', "maintainer URL")
+    value = once(value, 'text = "Reddit",', 'text = "Upstream",', "upstream label")
+    value = once(value, 'context.openLink("https://www.reddit.com/r/ZenithMusic/s/gN6chb7onR")',
+                 'context.openLink("https://github.com/rezapranata089-bit/Zenith")', "upstream credit URL")
+    value = once(value, 'text = "Made by Zeuxxi",', 'text = "A more personal way to listen.",', "identity footer")
+    return value
+
+
 def repair_resource_labels(path: Path) -> None:
     # The first branding layer replaces Zenith inside XML text, including
     # historical storage paths; restore descriptive (not fictional) UI wording.
@@ -154,6 +168,8 @@ def main() -> None:
 
     for filename, transparent in (("Logo.svg", False), ("LogoTransparent.svg", True)):
         edit(APP / "assets" / filename, lambda _old, t=transparent: svg_asset(t))
+
+    edit(ROOT / "app/src/main/java/com/music/zenith/ui/screens/SettingsSheet.kt", settings_footer)
 
     for directory in UI_ROOTS:
         if not directory.is_dir():
