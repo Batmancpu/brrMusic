@@ -161,6 +161,7 @@ import com.music.zenith.ui.components.CoverPlaceholder
 import com.music.zenith.data.canvas.AppleArtistArt
 import com.music.zenith.data.DebugLog as Log
 import com.music.zenith.data.canvas.AppleAlbumInfoRepository
+import com.music.zenith.data.canvas.audioQualityLabel
 import com.music.zenith.data.canvas.AppleArtistArtRepository
 import com.music.zenith.data.canvas.releaseDateText
 import com.music.zenith.data.canvas.appleCatalogue
@@ -676,6 +677,7 @@ fun DetailScreen(
                         heroHeight = artHeight * 0.92f,
                         pull = { (listOverscroll as? PullDownOverscrollEffect)?.pullDownPx ?: 0f },
                         albumGenre = albumInfo?.genre,
+                        albumQuality = albumInfo?.audioQualityLabel(),
                         canvas = canvas,
                         songs = songs,
                         onPlay = { onPlay(songs) },
@@ -1049,13 +1051,15 @@ private fun ReleaseHeader(
     heroHeight: Dp = sleeveSize * 1.2f,
     /** Genre yang Apple catat untuk album ini; tampil menggantikan label "Album". */
     albumGenre: String? = null,
+    /** "Hi-Res Lossless" / "Lossless" dari katalog Apple, setelah tahun di baris info. */
+    albumQuality: String? = null,
     /** How far the list is pulled past its top right now, in px; the hero zooms by it. */
     pull: () -> Float = { 0f },
 ) {
     val (credit, listMeta) = page.headerLines(songs.size, songs.playtime())
     // Apple Music: "Jazz • 2023". Jumlah lagu dan durasi pindah ke kaki halaman.
     val meta = if (page.type == BrowseType.ALBUM && !page.browseId.startsWith("local:")) {
-        page.albumMeta(albumGenre)
+        listOfNotNull(page.albumMeta(albumGenre).ifBlank { null }, albumQuality).joinToString(" • ")
     } else {
         listMeta
     }
