@@ -95,7 +95,7 @@ def wordmark_text(value: str) -> str:
 
 
 # Only Kotlin UI string literals, never package paths, identifiers, URLs, or API IDs.
-QUOTED = re.compile(r'"(?:\\.|[^"\\])*"')
+QUOTED = re.compile(r'"(?:\\.|[^"\\\n])*"')
 HUMAN_BRAND = re.compile(r'(?<![A-Za-z0-9_])Zenith(?![A-Za-z0-9_])')
 SKIP_LITERALS = ("http:", "https:", "com.music.", ".firebaseapp.com", "zenith-canvas",
                  "com.zeux.", "github.com/", "Zenith/", "Music/Zenith",
