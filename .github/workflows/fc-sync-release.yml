@@ -1,4 +1,4 @@
-name: FC Zenith — upstream sync and Music release
+name: brrMusic — upstream sync, quality checks and release
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       CCACHE_COMPILERCHECK: content
 
     steps:
-      - name: Checkout FCZenith main
+      - name: Checkout brrMusic main
         uses: actions/checkout@v4
         with:
           ref: main
@@ -151,6 +151,13 @@ jobs:
           REFINEMENT_ENABLED="$(sed -n 's/^enabled=//p' fc/spatial-audio/refinement/config.properties)"
           LAST_REFINEMENT_ENABLED="$(sed -n 's/^audioRefinement=//p' fc/version.properties)"
           LAST_REFINEMENT_ENABLED="${LAST_REFINEMENT_ENABLED:-false}"
+          BRANDING_REVISION="$(sed -n 's/^brandingRevision=//p' fc/branding/config.properties)"
+          LAST_BRANDING_REVISION="$(sed -n 's/^brandingRevision=//p' fc/version.properties)"
+          LAST_BRANDING_REVISION="${LAST_BRANDING_REVISION:-0}"
+          if [[ ! "$BRANDING_REVISION" =~ ^[0-9]+$ ]]; then
+            echo "Invalid brrMusic branding revision" >&2
+            exit 1
+          fi
           if [[ "$REFINEMENT_ENABLED" != "true" && "$REFINEMENT_ENABLED" != "false" ]]; then
             echo "Invalid spatial refinement flag" >&2
             exit 1
@@ -172,7 +179,7 @@ jobs:
             release_asset_exists=true
           fi
 
-          if [[ "$UPSTREAM_VERSION" != "$CURRENT_UPSTREAM_VERSION" || "$UPSTREAM_CHANGED" == "true" || "$EXPERIMENT_ENABLED" != "$LAST_EXPERIMENT_ENABLED" || "$REFINEMENT_ENABLED" != "$LAST_REFINEMENT_ENABLED" ]]; then
+          if [[ "$UPSTREAM_VERSION" != "$CURRENT_UPSTREAM_VERSION" || "$UPSTREAM_CHANGED" == "true" || "$EXPERIMENT_ENABLED" != "$LAST_EXPERIMENT_ENABLED" || "$REFINEMENT_ENABLED" != "$LAST_REFINEMENT_ENABLED" || "$BRANDING_REVISION" != "$LAST_BRANDING_REVISION" ]]; then
             # A new stable series starts at .1; new main commits in that series increment the FC revision.
             python3 fc/bump-version.py "$UPSTREAM_VERSION"
             should_release=true
@@ -193,6 +200,8 @@ jobs:
             printf 'experimentalAudio=%s\n' "$EXPERIMENT_ENABLED" >> fc/version.properties
             sed -i '/^audioRefinement=/d' fc/version.properties
             printf 'audioRefinement=%s\n' "$REFINEMENT_ENABLED" >> fc/version.properties
+            sed -i '/^brandingRevision=/d' fc/version.properties
+            printf 'brandingRevision=%s\n' "$BRANDING_REVISION" >> fc/version.properties
           fi
           VERSION_CODE="$(sed -n 's/^versionCode=//p' fc/version.properties)"
           VERSION_NAME="$(sed -n 's/^versionName=//p' fc/version.properties)"
@@ -347,7 +356,11 @@ jobs:
 
       - name: Apply reversible brrMusic presentation overlay
         if: steps.decision.outputs.should_release == 'true'
-        run: python3 fc/branding/apply.py
+        run: |
+          set -euo pipefail
+          python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py
+          python3 fc/branding/apply.py
+          python3 fc/branding/makeover.py
       - name: Run production unit tests
         if: steps.decision.outputs.should_release == 'true'
         env:
@@ -525,6 +538,16 @@ jobs:
           for path in "${paths[@]}"; do
             git restore --source="$UPSTREAM_COMMIT" --staged --worktree -- "$path"
           done
+      - name: Restore brrMusic-only visual changes after build
+        if: steps.decision.outputs.should_release == 'true' && always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep upstream source merge intact; discard only temporary worktree
+          # changes created by identity and spatial overlays. Index holds the merge.
+          git restore --worktree -- app/src/main sharedUi/src/commonMain/composeResources sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui
+          git diff --exit-code -- app/src/main sharedUi/src/commonMain/composeResources sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui
+
       - name: Commit the upstream sync and FC version metadata to main
         if: steps.decision.outputs.should_release == 'true'
         env:
@@ -540,7 +563,7 @@ jobs:
           fi
           git push origin HEAD:main
 
-      - name: Publish branded APK to FCZenith Releases
+      - name: Publish signed brrMusic APK
         if: steps.decision.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
@@ -548,20 +571,20 @@ jobs:
           target_commitish: main
           name: ${{ env.FC_APP_NAME }} v${{ steps.decision.outputs.version_name }}
           body: |
-            FC Zenith release: ${{ env.FC_APP_NAME }} v${{ steps.decision.outputs.version_name }}.
+            brrMusic release: ${{ env.FC_APP_NAME }} v${{ steps.decision.outputs.version_name }}.
 
             - Android package: com.spotify.music
             - App label: ${{ env.FC_APP_NAME }}
             - Upstream stable version baseline: ${{ steps.upstream.outputs.tag }}.
             - Upstream source: ${{ steps.upstream.outputs.source_ref }} at commit ${{ steps.upstream.outputs.commit }}.
             - Includes ${{ steps.upstream.outputs.commits_ahead }} upstream commits beyond the stable baseline when built as a main snapshot.
-            - FC Zenith follows upstream main automatically. Every new source snapshot must pass tests, build and signature verification before publishing.
+            - brrMusic syncs the newest compatible Zenith upstream source. Every new release must pass tests, build and signature verification.
             - The same FC signing certificate is checked before publishing.
             - Experimental DSP quality layer: ${{ steps.spatial_quality.outputs.enabled }} (reversible; includes audio regression tests).
             - Additional center/limiter refinement: ${{ steps.spatial_refinement.outputs.enabled }} (independently reversible; tests required).
             - Spatial Audio: ${{ steps.spatial_audio.outputs.included == 'true' && 'Includes the persistent FC stereo learner, binary per-track On/Off with Auto status, and phone-speaker/Atmos/DSP safety bypasses. Profiles and explicit feedback remain on-device.' || 'Not included in this build.' }}
 
-            Obtainium source: https://github.com/Batmancpu/FCZenith
+            Obtainium source: https://github.com/Batmancpu/brrMusic
           files: dist/${{ env.FC_APK_PREFIX }}v${{ steps.decision.outputs.version_name }}.apk
           fail_on_unmatched_files: true
           make_latest: true
