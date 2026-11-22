@@ -1,4 +1,4 @@
-name: FC Spatial Audio — isolated quality validation
+name: brrMusic — Android integration and branding validation
 
 on:
   pull_request:
@@ -8,6 +8,9 @@ on:
       - 'fc/spatial-audio/apply.py'
       - 'fc/spatial-audio/source-commit'
       - 'fc/spatial-audio/refinement/**'
+      - 'fc/branding/**'
+      - 'canvas-web/public/index.html'
+      - 'canvas-web/public/api/tg-webhook.js'
       - '.github/workflows/fc-sync-release.yml'
       - '.github/workflows/fc-spatial-quality-verify.yml'
   workflow_dispatch:
@@ -106,7 +109,10 @@ jobs:
           python3 fc/spatial-audio/apply.py
           python3 fc/spatial-audio/experimental/apply.py
           python3 fc/spatial-audio/refinement/apply.py
+          python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py
+          python3 -m unittest discover -s fc/branding -p 'test_*.py'
           python3 fc/branding/apply.py
+          python3 fc/branding/makeover.py
 
       - name: Fill missing Android locale fallbacks for this build
         run: |
