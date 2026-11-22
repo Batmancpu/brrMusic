@@ -82,16 +82,23 @@ def svg_asset(transparent: bool) -> str:
             '</g></svg>\n')
 
 
-def splash_text(value: str) -> str:
-    value = once(value, 'text = "Music",', 'text = "brrMusic",', "splash label")
-    # Rethink the inherited saturated red screen as a quiet midnight-to-indigo introduction.
-    value = once(value, 'listOf(Color(0xFFFF5D73), Color(0xFFF72A45))',
-                 'listOf(Color(0xFF0B1020), Color(0xFF28224C))', "splash gradient")
-    return value
-
-
-def wordmark_text(value: str) -> str:
-    return once(value, 'text = "Music",', 'text = "brrMusic",', "reusable wordmark")
+def remove_startup_overlay(value: str) -> str:
+    # Remove the extra full-screen Compose splash and its artificial
+    # first-frame gate. Android's system-provided launch window remains.
+    start = "        setContent {\n            AppSplash(\n"
+    end = "            if (!contentReady) return@setContent\n"
+    if value.count(start) != 1 or value.count(end) != 1:
+        raise SystemExit("AppSplash integration changed upstream; review before release")
+    prefix, rest = value.split(start, 1)
+    discarded, suffix = rest.split(end, 1)
+    if not all(token in discarded for token in (
+        "setImageResource(R.drawable.splash_logo_dark_glass)",
+        "contentReady = true", "withFrameNanos",
+    )):
+        raise SystemExit("Unexpected startup composition; refusing unsafe splash removal")
+    value = prefix + "        setContent {\n" + suffix
+    return once(value, "import com.music.zenith.ui.screens.AppSplash\n", "",
+                "unused AppSplash import")
 
 
 # Only Kotlin UI string literals, never package paths, identifiers, URLs, or API IDs.
@@ -164,9 +171,8 @@ def main() -> None:
         edit(theme_file, lambda value: once(value, "#FB4059", "#0B1020", "native splash background"))
         ET.fromstring(theme_file.read_text(encoding="utf-8"))
 
-    # These components are actually shown during start and on Home.
-    edit(ROOT / "sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui/screens/AppSplash.kt", splash_text)
-    edit(ROOT / "sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui/screens/Wordmark.kt", wordmark_text)
+    # No marketing splash; Home shows only "Music" via the first branding layer.
+    edit(ROOT / "app/src/main/java/com/music/zenith/MainActivity.kt", remove_startup_overlay)
 
     # All icon options and all startup mark variants cease displaying the Z.
     vector_files = {

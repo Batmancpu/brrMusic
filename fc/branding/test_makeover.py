@@ -25,13 +25,33 @@ class MakeoverTests(unittest.TestCase):
         self.assertIn('"Music downloads"', edited)
         self.assertIn('ZenithIcons.Play', edited)
 
-    def test_startup_text_and_midnight_palette(self):
-        sample = 'Text(text = "Music", color = Color.White)\n' + \
-                 'listOf(Color(0xFFFF5D73), Color(0xFFF72A45))'
-        edited = makeover.splash_text(sample)
-        self.assertIn('text = "brrMusic"', edited)
-        self.assertIn('Color(0xFF0B1020)', edited)
-        self.assertNotIn('0xFFFF5D73', edited)
+    def test_direct_launch_removes_branded_splash_and_frame_gate(self):
+        sample = (
+            "import com.music.zenith.ui.screens.AppSplash\n"
+            "class MainActivity {\n"
+            "        setContent {\n"
+            "            AppSplash(\n"
+            "                mark = { size ->\n"
+            "                    setImageResource(R.drawable.splash_logo_dark_glass)\n"
+            "                },\n"
+            "            )\n"
+            "            // The splash is drawn alone on first frame\n"
+            "            var contentReady = true\n"
+            "            withFrameNanos { }\n"
+            "            if (!contentReady) return@setContent\n"
+            "            DrawMainApp()\n"
+            "        }\n"
+            "}\n"
+        )
+        edited = makeover.remove_startup_overlay(sample)
+        self.assertIn("setContent {\n            DrawMainApp()", edited)
+        self.assertNotIn("AppSplash", edited)
+        self.assertNotIn("contentReady", edited)
+        self.assertNotIn("withFrameNanos", edited)
+
+    def test_direct_launch_fail_closed_on_changed_upstream(self):
+        with self.assertRaises(SystemExit):
+            makeover.remove_startup_overlay("setContent { AppSplash() }")
 
     def test_all_mark_variants_are_original_waveforms(self):
         for h in (72, 108):

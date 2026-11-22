@@ -96,12 +96,14 @@ A calmer identity, from the first frame to the last detail.
 
 | Moment | brrMusic presentation |
 | :--- | :--- |
-| **Launch** | A midnight-to-indigo opening screen with brrMusic lettering and an original sound-wave mark. |
-| **Home and browsing** | brrMusic wordmark and inherited music discovery without the original upstream Z badge. |
-| **Onboarding and icons** | Fork-specific startup and glass-icon artwork while retaining the existing installed package. |
+| **Launch** | No extra branded loading animation. The app opens directly after Android's standard launch window. |
+| **Home and browsing** | A restrained **Music** heading, without a brrMusic or Zenith wordmark dominating the screen. |
+| **Onboarding and icons** | Fork-specific icon artwork while retaining the existing installed package. |
 | **Playlists and sharing** | brrMusic in visible labels, Replay cards and shared content; clean lyric images without watermarks. |
 | **Settings and updates** | brrMusic name and version, fork download links and explicit links for upstream attribution. |
 | **Canvas website** | Matching brrMusic identity, a sound-wave emblem and cool-toned dark styling. |
+
+**Glass interactions:** The next branded release includes a limited elastic-touch experiment for controls without existing springs. It automatically retires from subsequent releases after successful publication, keeping upstream glass behavior as the long-term default.
 
 **Screenshots:** The previous README contained screenshots captured from Zenith. Those legacy screenshots have been removed rather than presented as evidence of the new brrMusic interface. Verified screenshots from an installed release can be added after device testing.
 
