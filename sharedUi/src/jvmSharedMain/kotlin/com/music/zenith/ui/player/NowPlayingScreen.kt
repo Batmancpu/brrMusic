@@ -3139,13 +3139,9 @@ fun NowPlayingScreen(
                     // Sambungan tepi cover tetap tampil di lagu ber-canvas (canvasHero)
                     // walau "Sampul layar penuh" dimatikan; tanpa canvas tetap ikut setelan.
                     if ((fullBleedArt || canvasHero) && heroMode) {
-                        // Blur layar penuh kedua ini hanya ada di lagu canvas dan seam-nya
-                        // bergerak tiap frame saat player minimize/expand: sembunyikan cepat
-                        // selama bergerak, lalu munculkan lagi setelah menetap.
-                        val edgeMoving = dockMoving || collapseStarted
                         val edgeAlpha by animateFloatAsState(
-                            targetValue = if (!lyricsOpen && !queueOpen && !edgeMoving) 1f else 0f,
-                            animationSpec = if (edgeMoving) tween(durationMillis = 90) else tween(durationMillis = 300),
+                            targetValue = if (!lyricsOpen && !queueOpen) 1f else 0f,
+                            animationSpec = tween(durationMillis = 300),
                             label = "coverEdgeTint",
                         )
                         CoverEdgeBackdrop(
@@ -3222,7 +3218,6 @@ fun NowPlayingScreen(
                                 (dockMoving && CanvasFadeTuning.pausesWhileDocking()) ||
                                 queueDragging ||
                                 (collapseStarted && !(liveCanvasPanels && (lyricsOpen || queueOpen))) ||
-                                (collapseStarted && !collapseDone && !clipFullscreen) ||
                                 (overlayOpen.value && !clipFullscreen),
                             // Spotify's 9:16 Canvas is the phone background, so it
                             // covers every edge. Other providers retain the contained
@@ -3245,7 +3240,9 @@ fun NowPlayingScreen(
                             //
                             // Out of sight altogether while its still stands in for it.
                             presentationAlpha = {
-                                if (stillTakesOver()) 0f
+                                if (stillTakesOver() ||
+                                    (dockMoving && !clipFullscreen && !(liveCanvasPanels && (lyricsOpen || queueOpen)))
+                                ) 0f
                                 else (
                                     if (liveCanvasPanels && (lyricsOpen || queueOpen || clipHeldForPanels)) 1f
                                     else if (clipFullscreen) {
@@ -3268,7 +3265,7 @@ fun NowPlayingScreen(
                             // still is never shown there, so a per-frame PixelCopy loop would
                             // only stall the render thread and delay the blur.
                             captureStill = stillMoving && !clipFullscreen &&
-                                !(liveCanvasPanels && collapseDone && !dockMoving),
+                                !(liveCanvasPanels && (lyricsOpen || queueOpen) && !dockMoving),
                             onStillCaptured = onStillCaptured,
                             onResumed = onClipResumed,
                             frameGrab = if (clipFullscreen) fullFrameGrab else canvasFrameGrab,
@@ -4510,14 +4507,10 @@ fun NowPlayingScreen(
                                                 // Klip non-Spotify ikut bertahan di belakang panel; cover
                                                 // baru muncul saat mengecil jadi header, bukan menutupi klip
                                                 // begitu panel dibuka.
-                                                if (CanvasStills.fresh && still() != null) {
-                                                    1f
-                                                } else {
-                                                    maxOf(
-                                                        smootherStep(((p() - 0.4f) / 0.6f).coerceIn(0f, 1f)),
-                                                        1f - canvasCover.floatValue,
-                                                    )
-                                                }
+                                                maxOf(
+                                                    smootherStep(((p() - 0.4f) / 0.6f).coerceIn(0f, 1f)),
+                                                    1f - canvasCover.floatValue,
+                                                )
                                             }
                                         } else if (stillTakesOver()) 1f
                                         else if (heroClip != null) 1f - canvasCover.floatValue
