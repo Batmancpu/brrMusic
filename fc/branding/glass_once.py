@@ -45,9 +45,11 @@ def search_morph(source: str) -> str:
     # capsule itself already springs during opening and must not be scaled.
     return replace_once(
         source,
+        "                        .align(Alignment.CenterStart)\n"
         "                        .size(MORPH_CONTROL)\n"
         "                        .graphicsLayer { alpha = openFraction }\n"
         "                        .clickable(",
+        "                        .align(Alignment.CenterStart)\n"
         "                        .size(MORPH_CONTROL)\n"
         "                        .glassJelly()\n"
         "                        .graphicsLayer { alpha = openFraction }\n"
