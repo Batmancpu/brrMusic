@@ -115,7 +115,7 @@ internal suspend fun lyricsCardPainter(
     // Top right. The Z is drawn at the word's own cap height, sits on its
     // baseline (nudged down by LOGO_DROP) and stays close to the word.
     if (showLogo) {
-        val brand = type.heading(46f, 0xE6FFFFFF.toInt())
+        val brand = type.body(46f, 0xE6FFFFFF.toInt(), bold = true)
         val brandBaseline = HEADER_BASELINE + shift
         val capBounds = android.graphics.Rect().also { brand.getTextBounds("Z", 0, 1, it) }
         val logoH = capBounds.height().toFloat()
@@ -520,8 +520,11 @@ internal class LyricsCardPainter internal constructor(
             val hx = dist * w
             val front = feather * 0.6f
             val back = feather * 0.4f
-            val reached = hx + front > 0f
-            val settled = hx - back >= w
+            // Before the line's first word the head rests on its first letter;
+            // nothing may be lit yet, or that letter glows ahead of its turn.
+            val waiting = pos < firstStart
+            val reached = !waiting && hx + front > 0f
+            val settled = !waiting && hx - back >= w
             if (settled || wordDone) {
                 scratch.alpha = activeAlpha
                 canvas.drawText(text, s, e, left, placed.baseline, scratch)
@@ -774,7 +777,7 @@ private const val CARD_CONTENT_W = CARD_W - CARD_MARGIN * 2
 
 /** Gap between the Z and the word, and how far the Z is lowered onto the word's baseline. */
 private const val LOGO_GAP = 12f
-private const val LOGO_DROP = 5f
+private const val LOGO_DROP = 2f
 private const val BRAND = "Music"
 private const val LOGO_ASPECT = 730f / 484f
 
