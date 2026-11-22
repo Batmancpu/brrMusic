@@ -3131,16 +3131,21 @@ fun NowPlayingScreen(
                         driftMillis = 20_000,
                         colorFadeMillis = 3_500,
                         matchSeam = (fullBleedArt || canvasHero) && heroMode && !lyricsOpen && !queueOpen && !queueShowing,
-                        // Klip sedang tampil: blob diam supaya blur layar penuh tidak digambar ulang tiap frame.
-                        paused = canvas != null && canvasRendered,
+                        // Klip sedang tampil atau player sedang bergerak (minimize/expand):
+                        // blob diam supaya blur layar penuh tidak digambar ulang tiap frame.
+                        paused = (canvas != null && canvasRendered) || dockMoving || collapseStarted,
                         modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
                     )
                     // Sambungan tepi cover tetap tampil di lagu ber-canvas (canvasHero)
                     // walau "Sampul layar penuh" dimatikan; tanpa canvas tetap ikut setelan.
                     if ((fullBleedArt || canvasHero) && heroMode) {
+                        // Blur layar penuh kedua ini hanya ada di lagu canvas dan seam-nya
+                        // bergerak tiap frame saat player minimize/expand: sembunyikan cepat
+                        // selama bergerak, lalu munculkan lagi setelah menetap.
+                        val edgeMoving = dockMoving || collapseStarted
                         val edgeAlpha by animateFloatAsState(
-                            targetValue = if (!lyricsOpen && !queueOpen) 1f else 0f,
-                            animationSpec = tween(durationMillis = 300),
+                            targetValue = if (!lyricsOpen && !queueOpen && !edgeMoving) 1f else 0f,
+                            animationSpec = if (edgeMoving) tween(durationMillis = 90) else tween(durationMillis = 300),
                             label = "coverEdgeTint",
                         )
                         CoverEdgeBackdrop(
