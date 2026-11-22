@@ -1245,7 +1245,7 @@ private fun ReleaseHeader(
                     fontWeight = FontWeight.Normal,
                     fontSize = 19.sp,
                 ),
-                color = palette.onBackgroundVariant,
+                color = palette.onBackground,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
