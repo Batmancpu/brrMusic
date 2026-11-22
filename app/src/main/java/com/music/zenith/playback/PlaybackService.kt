@@ -99,6 +99,7 @@ import com.music.zenith.data.listentogether.partyUpcomingAfter
 import com.music.zenith.R
 import com.music.zenith.data.LocalMediaRepository
 import com.music.zenith.data.OfflinePlaylists
+import com.music.zenith.data.canvas.CanvasRepository
 import com.music.zenith.data.innertube.InnertubeParser
 import com.music.zenith.data.YtMusicRepository
 import com.music.zenith.data.lyrics.EmbeddedLyrics
@@ -130,11 +131,13 @@ import com.music.zenith.data.innertube.StreamResolver
 import com.music.zenith.data.model.LikeStatus
 import com.music.zenith.data.model.Song
 import com.music.zenith.data.model.isUnresolvedSpotify
+import com.music.zenith.data.remote.RemoteArtworkStore
 import com.music.zenith.data.scrobbling.LastFM
 import com.music.zenith.data.scrobbling.ListenBrainzManager
 import com.music.zenith.data.scrobbling.ScrobbleManager
 import com.music.zenith.data.settings.AppSettings
 import com.music.zenith.data.settings.AudioQuality
+import com.music.zenith.ui.player.prefetchAutoMixArtwork
 import com.music.zenith.data.settings.BitPerfectMode
 import com.music.zenith.data.settings.permits
 import com.music.zenith.data.settings.EqualizerMode
@@ -1895,6 +1898,48 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    private var autoMixArtworkJob: Job? = null
+
+    /**
+     * Warms the incoming track's cover, backdrop and canvas as soon as AutoMix
+     * arms it, so none of it is first computed on the frame the cover changes.
+     * A newer arm cancels one still running.
+     */
+    private fun prefetchAutoMixIncoming(item: MediaItem) {
+        autoMixArtworkJob?.cancel()
+        autoMixArtworkJob = scope.launch {
+            val song = item.toSong()
+            // The canvas lookup is independent of the still art, so it runs alongside.
+            launch {
+                if (AppSettings.animatedCanvas.value &&
+                    (AppSettings.meteredConnection.value != true || AppSettings.canvasOverCellular.value)
+                ) {
+                    try {
+                        CanvasRepository.canvasFor(song)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Decoration only: a miss is the normal answer.
+                    }
+                }
+            }
+            try {
+                val artUrl = song.thumbnailUrl ?: if (
+                    song.videoId.startsWith("webdav:") || song.videoId.startsWith("smb:")
+                ) {
+                    withContext(Dispatchers.IO) { RemoteArtworkStore.resolveArt(this@PlaybackService, song) }
+                } else {
+                    null
+                }
+                if (artUrl != null) prefetchAutoMixArtwork(this@PlaybackService, artUrl)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // The cover then loads the ordinary way when it appears.
+            }
+        }
+    }
+
     private fun createCrossfadeController() = CrossfadeController(
             scope,
             active = { requireNotNull(player) },
@@ -1940,6 +1985,7 @@ class PlaybackService : MediaLibraryService() {
             // levelled on its own sink before it renders a frame, and the
             // outgoing track keeps its own gain for the rest of the blend.
             onArmIncoming = { item, nextId -> spareLoudness().track(item.mediaId, nextId) },
+            onArmAutoMixIncoming = ::prefetchAutoMixIncoming,
             // Both sinks, not a role: the trim is about what the pair sums to.
             onBlendHeadroom = { trim ->
                 loudnessA.setBlendTrim(trim)
