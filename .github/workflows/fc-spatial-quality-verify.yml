@@ -8,6 +8,7 @@ on:
       - 'fc/spatial-audio/apply.py'
       - 'fc/spatial-audio/source-commit'
       - 'fc/spatial-audio/refinement/**'
+      - 'fc/spatial-audio/headphone-force/**'
       - 'fc/branding/**'
       - 'canvas-web/public/index.html'
       - 'canvas-web/public/api/tg-webhook.js'
@@ -109,6 +110,9 @@ jobs:
           python3 fc/spatial-audio/apply.py
           python3 fc/spatial-audio/experimental/apply.py
           python3 fc/spatial-audio/refinement/apply.py
+          python3 -m py_compile fc/spatial-audio/headphone-force/apply.py
+          python3 -m unittest discover -s fc/spatial-audio/headphone-force -p 'test_*.py'
+          python3 fc/spatial-audio/headphone-force/apply.py
           python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py fc/branding/glass_once.py
           python3 -m unittest discover -s fc/branding -p 'test_*.py'
           python3 fc/branding/apply.py

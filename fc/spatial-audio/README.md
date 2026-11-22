@@ -20,6 +20,11 @@ generated application edits before committing the upstream sync.
   (“Auto · On” or “Auto · Off”), not as a third toggle.
 - Phone speaker is blocked by default. Dolby Atmos and unavailable DSP are hard
   bypasses. Profiles are capped at 400 records and excluded from settings export.
+- **Force headphone surround** is an opt-in software stereo mode in Settings.
+  It sets the persistent global spatial policy to On instead of Auto, overriding
+  learned Auto decisions only. Disabling it returns to Auto; the overall spatial
+  switch still provides Off. The option never enables an unsupported E-AC-3/JOC
+  decoder, Dolby processing, phone speakers by default, or bit-perfect DSP.
 - Only explicit per-track On/Off choices train the learner. Metadata, likes,
   scrobbles and playlists are not treated as preference evidence.
 
