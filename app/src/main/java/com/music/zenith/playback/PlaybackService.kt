@@ -9635,9 +9635,10 @@ class PlaybackService : MediaLibraryService() {
 
         /**
          * How much of a track has to be left for a mid-track quality swap to
-         * be worth the break in the audio it costs.
+         * be worth the break in the audio it costs. Long enough that an upgrade
+         * never competes with an Automix transition and its analysis.
          */
-        const val UPGRADE_MIN_REMAINING_MS = 20_000L
+        const val UPGRADE_MIN_REMAINING_MS = 45_000L
 
         /** Minimum interval between accepted listener-requested quality retries. */
         const val MANUAL_UPGRADE_COOLDOWN_MS = 30_000L
