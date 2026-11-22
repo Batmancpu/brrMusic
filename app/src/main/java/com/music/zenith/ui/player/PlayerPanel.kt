@@ -364,8 +364,14 @@ private fun PanelMiniRow(
         ) {
             val artSize = if (glass) bar.playerArt.dp else 40.dp
             val artShape = RoundedCornerShape(if (glass) MINI_ART_CORNER else 8.dp)
+            // Same condition as the pill's own cover, so a video's cover keeps its
+            // width when the pill comes back in place of this row.
+            val wideVideo = song.isVideo &&
+                !com.music.zenith.ui.components.VideoThumbnails.square &&
+                !com.music.zenith.data.settings.AppSettings.stillVideoCovers.value &&
+                com.music.zenith.playback.MusicOnlyPlayback.showsPicture(song.videoId)
             val artWidth = when {
-                !song.isVideo -> artSize
+                !wideVideo -> artSize
                 glass -> artSize * (16f / 9f)
                 else -> 71.dp
             }
