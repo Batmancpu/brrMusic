@@ -190,11 +190,7 @@ object LocalMediaRepository {
                         val albumId = cursor.getLong(albumIdCol)
                         val tags = ScannedTags(
                             albumName = cursor.getString(albumCol).cleanTag(),
-                            artworkUrl = if (albumId > 0) {
-                                ContentUris.withAppendedId(albumArtBaseUri, albumId).toString()
-                            } else {
-                                null
-                            },
+                            artworkUrl = LocalArtFetcher.trackArtUrl(contentUri),
                             dateAddedSeconds = cursor.getLong(dateAddedCol),
                             dateModifiedSeconds = cursor.getLong(dateModifiedCol),
                         )
@@ -507,7 +503,7 @@ object LocalMediaRepository {
                 videoId = videoIdByUri[contentUri] ?: contentUri,
                 title = songTitle,
                 artist = cursor.getString(artist).cleanTag() ?: "Unknown Artist",
-                thumbnailUrl = if (artId > 0) ContentUris.withAppendedId(ALBUM_ART_URI, artId).toString() else null,
+                thumbnailUrl = LocalArtFetcher.trackArtUrl(contentUri),
                 durationText = durationMs.takeIf { it > 0 }?.let { formatDuration(it) },
                 albumName = cursor.getString(album).cleanTag(),
                 localUri = contentUri,
