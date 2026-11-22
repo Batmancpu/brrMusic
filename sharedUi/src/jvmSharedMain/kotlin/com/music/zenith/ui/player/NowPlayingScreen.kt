@@ -2419,7 +2419,9 @@ fun NowPlayingScreen(
     // klip yang tepat) tetap menggantikannya begitu siap.
     SideEffect {
         val clipUrl = stillClip?.url
-        if (dockMoving && clipUrl != null && !CanvasStills.fresh) {
+        if ((dockMoving || collapseStarted || queueDragging || lyricsOpen || queueOpen) &&
+            clipUrl != null && !CanvasStills.fresh
+        ) {
             val grabbed = canvasFrameGrab.grab?.invoke()
             if (grabbed != null) {
                 val last = CanvasStills.current?.takeIf { it.url == clipUrl }
