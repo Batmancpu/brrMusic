@@ -2417,11 +2417,13 @@ fun NowPlayingScreen(
     // sinkron di frame yang sama, sebelum klip dijeda. Tanpa ini sleeve tak punya frame
     // selama beberapa frame awal dan jatuh ke thumbnail. Salinan sebenarnya (dengan posisi
     // klip yang tepat) tetap menggantikannya begitu siap.
+    val stillGrabbedForMove = remember { BooleanArray(1) }
     SideEffect {
         val clipUrl = stillClip?.url
-        if ((dockMoving || collapseStarted || queueDragging || lyricsOpen || queueOpen) &&
-            clipUrl != null && !CanvasStills.fresh
-        ) {
+        val atRest = !dockMoving && !collapseStarted && !queueDragging && !lyricsOpen && !queueOpen
+        if (atRest) stillGrabbedForMove[0] = false
+        if (!atRest && !stillGrabbedForMove[0] && clipUrl != null) {
+            stillGrabbedForMove[0] = true
             val grabbed = canvasFrameGrab.grab?.invoke()
             if (grabbed != null) {
                 val last = CanvasStills.current?.takeIf { it.url == clipUrl }
