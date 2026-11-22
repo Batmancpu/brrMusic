@@ -184,6 +184,11 @@ def main() -> None:
         edit(APP / "assets" / filename, lambda _old, t=transparent: svg_asset(t))
 
     edit(ROOT / "app/src/main/java/com/music/zenith/ui/screens/SettingsSheet.kt", settings_footer)
+    edit(ROOT / "app/src/main/java/com/music/zenith/ui/components/StarPromptDialog.kt",
+         lambda value: once(value,
+             'STAR_REPO_URL = "https://github.com/rezapranata089-bit/Zenith"',
+             'STAR_REPO_URL = "https://github.com/Batmancpu/brrMusic"',
+             "star prompt destination"))
 
     for directory in UI_ROOTS:
         if not directory.is_dir():
