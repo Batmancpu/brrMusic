@@ -109,10 +109,21 @@ jobs:
           python3 fc/spatial-audio/apply.py
           python3 fc/spatial-audio/experimental/apply.py
           python3 fc/spatial-audio/refinement/apply.py
-          python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py
+          python3 -m py_compile fc/branding/apply.py fc/branding/makeover.py fc/branding/glass_once.py
           python3 -m unittest discover -s fc/branding -p 'test_*.py'
           python3 fc/branding/apply.py
           python3 fc/branding/makeover.py
+          python3 fc/branding/glass_once.py
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('app/src/main/java/com/music/zenith/MainActivity.kt').read_text()
+          assert 'AppSplash(' not in root, 'Unexpected full-screen splash is still composed'
+          assert 'if (!contentReady) return@setContent' not in root
+          home = Path('sharedUi/src/jvmSharedMain/kotlin/com/music/zenith/ui/screens/HomeScreen.kt').read_text()
+          assert 'text = "Music"' in home
+          assert 'text = "brrMusic"' not in home
+          print('Home Music-only / direct app launch verified')
+          PY
 
       - name: Fill missing Android locale fallbacks for this build
         run: |
