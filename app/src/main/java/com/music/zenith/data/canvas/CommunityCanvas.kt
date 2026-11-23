@@ -56,7 +56,9 @@ object CommunityCanvas {
                 (wantTitle.contains(song) || song.contains(wantTitle))
             val artistOk = credited.isNotBlank() &&
                 (wantArtist.contains(credited) || credited.contains(wantArtist))
-            val albumOk = listed.isBlank() || wantAlbum.isNullOrBlank() || listed == wantAlbum
+            val albumOk = listed.isBlank() || wantAlbum.isNullOrBlank() ||
+                listed == wantAlbum ||
+                entry.album.stripTags().normalizeForMatch() == album?.stripTags()?.normalizeForMatch()
             titleOk && artistOk && albumOk
         } ?: return null
 
@@ -65,7 +67,8 @@ object CommunityCanvas {
             url = hit.url,
             title = hit.song.stripTags(),
             artist = hit.artist,
-            album = hit.album.takeIf { it.isNotBlank() },
+            // The album was already checked above; matches() would re-check it strictly.
+            album = null,
         )
     }
 
@@ -97,11 +100,18 @@ object CommunityCanvas {
         )
     }
 
-    // CanvasRepository.cleaned() drops bracketed tags such as "[From ...]" from
-    // the playing title, so a contributor's full catalogue title must lose
-    // them too or it never matches.
+    // Same noise CanvasRepository.cleaned() removes from the playing title
+    // ("[From ...]", "(Official Video)", " | ..."). A contributor's full
+    // catalogue title must lose it too or it never matches.
+    private val NOISE = Regex(
+        """\((?:from|official|lyrical|video|audio)[^)]*\)|\[[^]]*]|""" +
+            """\b(?:official (?:video|audio|music video)|lyrical|full song|4k video)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
     private fun String.stripTags(): String =
-        replace(Regex("\\[[^]]*]"), " ")
+        replace(NOISE, " ")
+            .substringBefore(" | ")
             .replace(Regex("\\s+"), " ")
             .trim()
             .ifBlank { this }
