@@ -56,7 +56,6 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 private val FallbackColors = listOf(
     Color(0xFF3A1C71),
