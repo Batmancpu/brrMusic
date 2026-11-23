@@ -1,7 +1,7 @@
 ## Zenith Canvas Web Guide
 
 ### 🎬 Make your own Canvas
-- 1️⃣ **Open the website:** go to the Zenith Canvas website in your browser.
+- 1️⃣ **Open the website:** go to https://zenith-canvas.vercel.app/ in your browser.
 - 2️⃣ **Sign in:** open the **Me** tab and tap **Sign in with Telegram Bot**. Telegram opens, press **Start** in the bot chat, then return to the website. __Only Zenith group members can sign in.__
 - 3️⃣ **Prepare your video:** MP4, square (1:1), 720 to 1280 px, 3 to 8 seconds, no audio, max `3 MB`.
 - 4️⃣ **Upload:** open the **Upload** tab and choose your video. The checks turn green when it fits all requirements.
