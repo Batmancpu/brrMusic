@@ -50,6 +50,18 @@ val signatureApiKey: String = (
         ?: ""
     ).trim()
 
+// The key never reaches BuildConfig as one readable string: it is XOR-masked
+// and cut into three hex pieces. FrameTuning.budget() reverses it at runtime.
+val signatureKeyParts: List<String> = run {
+    val seed = MessageDigest.getInstance("SHA-256")
+        .digest(listOf("zenith", "frame", "tuning", "v1").joinToString(".").toByteArray())
+    val hex = signatureApiKey.toByteArray().mapIndexed { i, b ->
+        "%02x".format((b.toInt() xor seed[i % seed.size].toInt()) and 0xff)
+    }.joinToString("")
+    val cut = (hex.length + 2) / 3
+    listOf(hex.take(cut), hex.drop(cut).take(cut), hex.drop(cut * 2))
+}
+
 /*
  * Where Listen Together's party server lives. Not a credential — it is a public
  * URL, and every device in a party has to be pointed at the same one — but it is
@@ -127,7 +139,9 @@ android {
         // AppUpdateChecker.apkAssetUrl.
         buildConfigField("String", "CANVAS_SECRET", "\"$canvasSecret\"")
         buildConfigField("String", "DEBUG_SECRET", "\"${debugSecret.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-        buildConfigField("String", "SIGNATURE_API_KEY", "\"${signatureApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "FRAME_A", "\"${signatureKeyParts[0]}\"")
+        buildConfigField("String", "FRAME_B", "\"${signatureKeyParts[1]}\"")
+        buildConfigField("String", "FRAME_C", "\"${signatureKeyParts[2]}\"")
         buildConfigField("String", "UPDATE_APK_PREFIX", "\"Zenith-\"")
         buildConfigField("String", "UPDATE_REPO", "\"${updateRepo.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
