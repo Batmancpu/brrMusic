@@ -44,6 +44,11 @@ val debugSecret: String = (
         ?: System.getenv("DEBUG_SECRET")
         ?: ""
     ).trim()
+val signatureApiKey: String = (
+    localProps.getProperty("SIGNATURE_API_KEY")
+        ?: System.getenv("SIGNATURE_API_KEY")
+        ?: ""
+    ).trim()
 
 /*
  * Where Listen Together's party server lives. Not a credential — it is a public
@@ -122,6 +127,7 @@ android {
         // AppUpdateChecker.apkAssetUrl.
         buildConfigField("String", "CANVAS_SECRET", "\"$canvasSecret\"")
         buildConfigField("String", "DEBUG_SECRET", "\"${debugSecret.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "SIGNATURE_API_KEY", "\"${signatureApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "UPDATE_APK_PREFIX", "\"Zenith-\"")
         buildConfigField("String", "UPDATE_REPO", "\"${updateRepo.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
