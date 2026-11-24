@@ -155,6 +155,8 @@ import com.music.zenith.data.settings.LibrarySort
 import com.music.zenith.data.settings.ThemeMode
 import com.music.zenith.ui.components.AccountProfileSelector
 import com.music.zenith.ui.components.ChartCountryDropdown
+import com.music.zenith.ui.components.ChartCountryButton
+import com.music.zenith.ui.components.ChartCountryMenu
 import com.music.zenith.ui.components.JellyMenuBody
 import com.music.zenith.ui.components.iosMenuJelly
 import com.music.zenith.ui.components.jellyMenuRow
@@ -1521,6 +1523,8 @@ private fun ZenithApp(
     val moodsGridState = rememberLazyGridState()
     val newReleasesListState = rememberLazyListState()
     val chartsListState = rememberLazyListState()
+    var chartCountryMenuOpen by remember { mutableStateOf(false) }
+    var chartCountryAnchor by remember { mutableStateOf<Rect?>(null) }
     val searchListState = rememberLazyListState()
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
@@ -3438,13 +3442,12 @@ private fun ZenithApp(
                                 onLoad = { viewModel.loadCharts() },
                                 onRetry = { viewModel.loadCharts(force = true) },
                                 onCountryChange = { viewModel.loadCharts(it) },
-                                countryDropdown = { expanded, onExpandedChange, onPick ->
-                                    ChartCountryDropdown(
-                                        selected = chartsCountry,
-                                        expanded = expanded,
-                                        onExpandedChange = onExpandedChange,
-                                        onPick = onPick,
-                                    )
+                                countryButton = { label, onClick ->
+                                    ChartCountryButton(label = label, onClick = onClick)
+                                },
+                                onCountryMenu = { anchor ->
+                                    chartCountryAnchor = anchor
+                                    chartCountryMenuOpen = true
                                 },
                                 onShelfItemClick = onExploreShelfClick,
                                 onShelfItemLongPress = onShelfLongPress,
@@ -5220,6 +5223,7 @@ private fun ZenithApp(
                 (songActions != null && songMenuOrigin == null && !((menuFromPlayer || menuFromQueue) && playerRaised)) ||
                     (browseActions != null && browseMenuOrigin == null && !browseRenameInSheet) ||
                     songInfoTarget != null ||
+                    chartCountryMenuOpen ||
                     searchSourceMenu != null
             LaunchedEffect(pageMenuUp, reduceDynamicBlur) {
                 if (pageMenuUp && !reduceDynamicBlur && isGlassSupported()) {
@@ -6492,6 +6496,18 @@ private fun ZenithApp(
             ) { target ->
                 browseMenuBody(target)
             }
+            ChartCountryMenu(
+                open = chartCountryMenuOpen,
+                anchor = chartCountryAnchor,
+                selected = chartsCountry,
+                onPick = { code ->
+                    chartCountryMenuOpen = false
+                    if (code != chartsCountry) viewModel.loadCharts(code)
+                },
+                onDismiss = { chartCountryMenuOpen = false },
+                backdrop = pageBackdrop,
+                hazeState = hazeState,
+            )
             LaunchedEffect(browseActions == null) {
                 if (browseActions == null) {
                     browseMenuOrigin = null
