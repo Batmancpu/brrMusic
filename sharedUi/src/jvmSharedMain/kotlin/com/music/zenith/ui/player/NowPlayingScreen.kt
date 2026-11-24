@@ -1752,6 +1752,8 @@ fun NowPlayingScreen(
     // tanpa dukungan video kini ikut pengaturan full-bleed seperti lagu biasa.
     val fullBleedArt = fullBleedSetting && !(videoMode && canvas == null)
     SideEffect { CanvasFadeTuning.fullBleed.value = fullBleedArt }
+    // Canvas Zenith punya set setelan fade dan kontrol sendiri.
+    SideEffect { CanvasFadeTuning.selectScope(canvas?.source == CanvasSource.ZENITH) }
     // Full-bleed is a phone idiom. What the width has to rule out is a player
     // running a foot wider than the column of controls under it — edge to edge
     // meaning "a picture, and separately some controls" rather than "the
