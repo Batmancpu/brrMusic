@@ -220,6 +220,165 @@ private fun LazyListScope.shelfPageItems(
     }
 }
 
+/** One square cover with title and credit underneath, for the New releases grid. */
+@Composable
+private fun ReleaseGridCard(
+    item: ShelfItem,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = modifier.longPressMenuClickable(onClick = onClick, onLongClick = onLongPress),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(shape)
+                .thumbnailBorder(shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            AsyncImage(
+                model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isCurrent) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = localizeCardSubtitle(item.subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * New releases, Apple Music style: albums and singles as a two-column grid of
+ * covers, tracks and artists as tidy rows, everything else as the usual shelves.
+ */
+private fun LazyListScope.newReleasesPageItems(
+    state: UiState<List<HomeShelf>>,
+    onRetry: () -> Unit,
+    onShelfItemClick: (ShelfItem, String) -> Unit,
+    onShelfItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    when (state) {
+        UiState.Loading -> feedSkeleton()
+        is UiState.Error -> item(key = "new-releases-error") {
+            MessageState(
+                state.message,
+                actionLabel = stringResource(Res.string.retry),
+                onAction = onRetry,
+            )
+        }
+        is UiState.Success -> state.data.forEachIndexed { shelfIndex, shelf ->
+            val shelfKey = "new-releases:$shelfIndex:${shelf.title}"
+            val artists = isChartArtistShelf(shelf)
+            val grid = !artists &&
+                shelf.layout == com.music.zenith.data.model.ShelfLayout.CARDS &&
+                shelf.items.isNotEmpty() &&
+                shelf.items.none { it.isVideo }
+            if (artists || isChartTrackShelf(shelf)) {
+                item(key = "$shelfKey:header") {
+                    SectionHeader(shelf.title, shelf.subtitle)
+                }
+                itemsIndexed(
+                    shelf.items,
+                    key = { index, item -> "$shelfKey:${item.browseId ?: item.videoId}:$index" },
+                    contentType = { _, _ -> "release-row" },
+                ) { index, item ->
+                    val current = !artists && item.videoId != null &&
+                        item.videoId == currentSong?.videoId
+                    ChartRankRow(
+                        rank = index + 1,
+                        item = item,
+                        round = artists,
+                        isCurrent = current,
+                        isPlaying = current && isPlaying,
+                        showDivider = index < shelf.items.lastIndex,
+                        showRank = false,
+                        onClick = { onShelfItemClick(item, shelf.title) },
+                        onLongPress = onShelfItemLongPress?.let { { it(item) } },
+                    )
+                }
+                item(key = "$shelfKey:end") { Spacer(Modifier.height(26.dp)) }
+            } else if (grid) {
+                item(key = "$shelfKey:header") {
+                    SectionHeader(shelf.title, shelf.subtitle)
+                }
+                itemsIndexed(
+                    shelf.items.chunked(2),
+                    key = { index, _ -> "$shelfKey:grid:$index" },
+                    contentType = { _, _ -> "release-grid-row" },
+                ) { _, pair ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = PAGE_GUTTER)
+                            .padding(bottom = 16.dp),
+                    ) {
+                        pair.forEach { card ->
+                            val current = card.videoId != null &&
+                                card.videoId == currentSong?.videoId
+                            ReleaseGridCard(
+                                item = card,
+                                isCurrent = current,
+                                isPlaying = current && isPlaying,
+                                onClick = { onShelfItemClick(card, shelf.title) },
+                                onLongPress = onShelfItemLongPress?.let { { it(card) } },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (pair.size < 2) Spacer(Modifier.weight(1f))
+                    }
+                }
+                item(key = "$shelfKey:end") { Spacer(Modifier.height(14.dp)) }
+            } else {
+                item(key = shelfKey) {
+                    if (shelf.layout == com.music.zenith.data.model.ShelfLayout.LIST) {
+                        RecentShelf(
+                            shelf = shelf,
+                            onItemClick = { onShelfItemClick(it, shelf.title) },
+                            onItemLongPress = onShelfItemLongPress,
+                            currentSong = currentSong,
+                            isPlaying = isPlaying,
+                        )
+                    } else {
+                        Shelf(
+                            shelf = shelf,
+                            onItemClick = { onShelfItemClick(it, shelf.title) },
+                            onItemLongPress = onShelfItemLongPress,
+                            currentSong = currentSong,
+                            isPlaying = isPlaying,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** The New releases page. Its title lives in the top bar, like the other pushed pages. */
 @Composable
 fun NewReleasesPage(
@@ -240,9 +399,9 @@ fun NewReleasesPage(
         contentPadding = contentPadding,
         modifier = modifier.fillMaxSize(),
     ) {
-        shelfPageItems(
+        item(key = "new-releases-top") { Spacer(Modifier.height(8.dp)) }
+        newReleasesPageItems(
             state = state,
-            keyPrefix = "new-releases",
             onRetry = onRetry,
             onShelfItemClick = onShelfItemClick,
             onShelfItemLongPress = onShelfItemLongPress,
@@ -275,6 +434,7 @@ private fun ChartRankRow(
     isCurrent: Boolean,
     isPlaying: Boolean,
     showDivider: Boolean,
+    showRank: Boolean = true,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)?,
 ) {
@@ -290,16 +450,18 @@ private fun ChartRankRow(
                 .fillMaxWidth()
                 .padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
         ) {
-            Text(
-                text = rank.toString(),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = if (rank <= 3) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(36.dp),
-            )
-            Spacer(Modifier.width(12.dp))
+            if (showRank) {
+                Text(
+                    text = rank.toString(),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    color = if (rank <= 3) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(36.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -345,7 +507,10 @@ private fun ChartRankRow(
         }
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = PAGE_GUTTER + 48.dp, end = PAGE_GUTTER),
+                modifier = Modifier.padding(
+                    start = PAGE_GUTTER + if (showRank) 48.dp else 70.dp,
+                    end = PAGE_GUTTER,
+                ),
                 thickness = 0.5.dp,
                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
             )

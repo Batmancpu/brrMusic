@@ -4486,6 +4486,7 @@ private fun ZenithApp(
                             AppRoute.ListenTogether -> stringResource(R.string.listen_together)
                             AppRoute.Sources -> stringResource(R.string.source)
                             AppRoute.Charts -> "Chart"
+                            AppRoute.NewReleases -> stringResource(R.string.shelf_new_releases)
                             else -> null
                         }
                     } else null,
