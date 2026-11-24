@@ -600,12 +600,15 @@ private fun PremiumAudioCard(
                     text = stringResource(R.string.youtube_premium_audio),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = "256 kbps",
                     style = MaterialTheme.typography.labelSmall,
                     color = accent,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(accent.copy(alpha = 0.16f))

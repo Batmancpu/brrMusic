@@ -117,7 +117,7 @@
     <string name="connected">Connected</string>
     <string name="account_integrations">Account &amp; integrations</string>
     <string name="youtube_premium_audio">Premium audio</string>
-    <string name="youtube_premium_audio_subtitle">Stream ~256 kbps Opus instead of the standard 160 kbps. Turn on only if your account has YouTube Premium.</string>
+    <string name="youtube_premium_audio_subtitle">Higher quality audio. YouTube Premium only.</string>
     <string name="spotify">Spotify</string>
     <string name="spotify_connect_subtitle">Sign in to load your playlists. Playback uses YouTube Music.</string>
     <string name="spotify_sign_in">Sign in with Spotify</string>
