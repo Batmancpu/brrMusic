@@ -404,6 +404,9 @@ class CrossfadeController(
     /** The last incoming row [begin] declined for [incomingAudioPending], so it logs once per row. */
     private var pendingAudioLoggedId: String? = null
 
+    /** The outgoing sink's filter was moved during arming, so it must be opened again if the standby stops being ready. */
+    private var armOutgoingFiltered = false
+
     /** Decoding the mix popup's waveforms for the blend in flight. */
     private var mixViewJob: Job? = null
 
@@ -1540,6 +1543,7 @@ class CrossfadeController(
             }
         }
         pendingAudioLoggedId = null
+        armOutgoingFiltered = false
         // The last blend's stretch, if it is somehow still easing off: this
         // player is about to be the outgoing side of a new one.
         endEase(clickless = false)
@@ -1754,13 +1758,26 @@ class CrossfadeController(
         // fade starts — otherwise the incoming track's first seconds are heard
         // unfiltered. The outgoing sink crosses into the blend its lead before
         // the listener does, and its filter has to start moving then.
-        val outgoingAt = if (fadeMs > 0L && fadeEndMs > 0L) {
+        // Standby belum READY (mis. lossless masih buffering): blend belum pasti
+        // terjadi, jadi filter dan tempo outgoing tidak boleh disentuh. Kalau
+        // tidak, lagu 1 meredam/rusak untuk transisi yang lagu 2-nya tidak masuk.
+        val outgoingAt = if (ready && fadeMs > 0L && fadeEndMs > 0L) {
             (out.currentPosition + tracks.outgoingLeadMs() - (fadeEndMs - fadeMs)).toFloat() / fadeMs
         } else {
             0f
         }
-        rideFilters(0f, outgoingAt.takeIf { it > 0f }?.coerceAtMost(1f))
-        if (rampSteps > 0) rampOutgoing(out)
+        if (outgoingAt > 0f) {
+            armOutgoingFiltered = true
+            rideFilters(0f, outgoingAt.coerceAtMost(1f))
+        } else {
+            rideFilters(0f, null)
+            if (armOutgoingFiltered) {
+                // Standby sempat siap lalu buffering lagi: buka filter outgoing.
+                armOutgoingFiltered = false
+                tracks.outgoing(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
+            }
+        }
+        if (rampSteps > 0 && ready) rampOutgoing(out)
 
         // Wait for the track to actually reach the fade point. [fadeEndMs] is
         // the track's own duration in standard mode, or a Automix plan's
