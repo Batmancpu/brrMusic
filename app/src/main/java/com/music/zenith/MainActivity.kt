@@ -4488,6 +4488,7 @@ private fun ZenithApp(
                             AppRoute.EqualizerPresets -> stringResource(R.string.equalizer_preset)
                             AppRoute.ListenTogether -> stringResource(R.string.listen_together)
                             AppRoute.Sources -> stringResource(R.string.source)
+                            AppRoute.Charts -> "Chart"
                             else -> null
                         }
                     } else null,

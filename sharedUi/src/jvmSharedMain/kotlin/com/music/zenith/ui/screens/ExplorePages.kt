@@ -52,6 +52,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.music.zenith.data.model.CARD_ART_PX
+import com.music.zenith.data.model.artworkAt
+import com.music.zenith.ui.components.SearchPlayingBars
+import com.music.zenith.ui.components.longPressMenuClickable
+import com.music.zenith.ui.components.thumbnailBorder
 import com.music.zenith.data.model.HomeShelf
 import com.music.zenith.data.model.ShelfItem
 import com.music.zenith.data.model.Song
@@ -236,6 +247,179 @@ fun NewReleasesPage(
     }
 }
 
+/** A chart shelf that lists artists (no track behind any row), shown as a ranked list. */
+private fun isChartArtistShelf(shelf: HomeShelf): Boolean =
+    shelf.items.isNotEmpty() &&
+        shelf.items.all { it.videoId == null && it.browseId?.startsWith("UC") == true }
+
+/** A chart shelf of plain tracks (no videos), shown as a ranked list. */
+private fun isChartTrackShelf(shelf: HomeShelf): Boolean =
+    shelf.layout != com.music.zenith.data.model.ShelfLayout.VIDEO &&
+        shelf.items.size >= 3 &&
+        shelf.items.all { it.videoId != null && !it.isVideo }
+
+/**
+ * One ranked chart row, Apple Music style: a big rank number (accented for the
+ * top three), the art, the title and credit, and a chevron on artist rows.
+ */
+@Composable
+private fun ChartRankRow(
+    rank: Int,
+    item: ShelfItem,
+    round: Boolean,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    showDivider: Boolean,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+) {
+    val artShape = if (round) CircleShape else RoundedCornerShape(10.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+        ) {
+            Text(
+                text = rank.toString(),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = if (rank <= 3) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(36.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(artShape)
+                    .thumbnailBorder(artShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                AsyncImage(
+                    model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = localizeCardSubtitle(item.subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (round) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = PAGE_GUTTER + 48.dp, end = PAGE_GUTTER),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+            )
+        }
+    }
+}
+
+/**
+ * The Charts shelves: artist and track charts as ranked lists, everything else
+ * (playlist charts, video charts) as the usual card shelves.
+ */
+private fun LazyListScope.chartsPageItems(
+    state: UiState<List<HomeShelf>>,
+    onRetry: () -> Unit,
+    onShelfItemClick: (ShelfItem, String) -> Unit,
+    onShelfItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    when (state) {
+        UiState.Loading -> feedSkeleton()
+        is UiState.Error -> item(key = "charts-error") {
+            MessageState(
+                state.message,
+                actionLabel = stringResource(Res.string.retry),
+                onAction = onRetry,
+            )
+        }
+        is UiState.Success -> state.data.forEachIndexed { shelfIndex, shelf ->
+            val shelfKey = "charts:$shelfIndex:${shelf.title}"
+            val artists = isChartArtistShelf(shelf)
+            if (artists || isChartTrackShelf(shelf)) {
+                item(key = "$shelfKey:header") {
+                    SectionHeader(shelf.title, shelf.subtitle)
+                }
+                itemsIndexed(
+                    shelf.items,
+                    key = { index, item -> "$shelfKey:${item.browseId ?: item.videoId}:$index" },
+                    contentType = { _, _ -> "chart-rank-row" },
+                ) { index, item ->
+                    val current = !artists && item.videoId != null &&
+                        item.videoId == currentSong?.videoId
+                    ChartRankRow(
+                        rank = index + 1,
+                        item = item,
+                        round = artists,
+                        isCurrent = current,
+                        isPlaying = current && isPlaying,
+                        showDivider = index < shelf.items.lastIndex,
+                        onClick = { onShelfItemClick(item, shelf.title) },
+                        onLongPress = onShelfItemLongPress?.let { { it(item) } },
+                    )
+                }
+                item(key = "$shelfKey:end") { Spacer(Modifier.height(26.dp)) }
+            } else {
+                item(key = shelfKey) {
+                    if (shelf.layout == com.music.zenith.data.model.ShelfLayout.LIST) {
+                        RecentShelf(
+                            shelf = shelf,
+                            onItemClick = { onShelfItemClick(it, shelf.title) },
+                            onItemLongPress = onShelfItemLongPress,
+                            currentSong = currentSong,
+                            isPlaying = isPlaying,
+                        )
+                    } else {
+                        Shelf(
+                            shelf = shelf,
+                            onItemClick = { onShelfItemClick(it, shelf.title) },
+                            onItemLongPress = onShelfItemLongPress,
+                            currentSong = currentSong,
+                            isPlaying = isPlaying,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** The Charts page: a country pill that opens the country sheet, then the chart shelves. */
 @Composable
 fun ChartsPage(
@@ -298,9 +482,8 @@ fun ChartsPage(
                 )
             }
         }
-        shelfPageItems(
+        chartsPageItems(
             state = state,
-            keyPrefix = "charts",
             onRetry = onRetry,
             onShelfItemClick = onShelfItemClick,
             onShelfItemLongPress = onShelfItemLongPress,
