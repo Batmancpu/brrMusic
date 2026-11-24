@@ -139,9 +139,12 @@ fun MotionLyricLine(
     }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val motionStyle = remember(style) {
+    val cursive = remember(text) { text.any(::isCursiveChar) }
+    val motionStyle = remember(style, cursive) {
         style.copy(
-            fontFeatureSettings = MotionTuning.NoLigatures,
+            // Aksara bersambung butuh ligatur dan letter-spacing normal agar sambungan huruf utuh.
+            fontFeatureSettings = if (cursive) style.fontFeatureSettings else MotionTuning.NoLigatures,
+            letterSpacing = if (cursive) 0.sp else style.letterSpacing,
             color = Color.Unspecified,
             // Teks beranimasi (naik + membesar): matikan hinting & snap piksel
             // supaya huruf tidak bergetar saat di-scale/translate tiap frame.
