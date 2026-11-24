@@ -23,6 +23,7 @@ import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -540,9 +541,18 @@ internal fun AndroidCanvasArtworkPlayer(
         }
     }
 
+    // Klip yang baru siap (surface pertama) melebur masuk perlahan di atas cover statis,
+    // bukan muncul 160ms. Surface pengganti setelah background dan hilangnya klip tetap
+    // cepat supaya cover tidak tertinggal kosong.
     val alpha by animateFloatAsState(
         targetValue = if (rendered) 1f else 0f,
-        animationSpec = if (revealInstantly) snap() else tween(durationMillis = 160),
+        animationSpec = if (revealInstantly) {
+            snap()
+        } else if (rendered && surfaceGeneration == 0) {
+            tween(durationMillis = 480, easing = FastOutSlowInEasing)
+        } else {
+            tween(durationMillis = 160)
+        },
         label = "canvasAlpha",
     )
 
