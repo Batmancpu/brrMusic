@@ -902,6 +902,12 @@ class CrossfadeController(
         val left = duration - out.currentPosition
         val fade = minOf(skipFadeMs(), left / 2, duration / 3)
         if (fade < SKIP_FADE_MIN_MS) return false
+        // Direct Source Stream holds every track outside its window at the resolver,
+        // so the standby would park on the skip target and never become ready.
+        // Open the window on it before the standby starts loading.
+        if (DirectSourceGate.isActive() && target in 0 until out.mediaItemCount) {
+            DirectSourceGate.openNext(out.getMediaItemAt(target).mediaId)
+        }
         if (!begin(fade = fade, endMs = out.currentPosition + fade, smart = false, targetIndex = target)) {
             return false
         }
@@ -4119,7 +4125,7 @@ class CrossfadeController(
          * not resolved until it is about to play and an addon lookup takes
          * seconds. The outgoing track keeps playing while this runs.
          */
-        const val DIRECT_SKIP_ARM_TIMEOUT_MS = 4_000L
+        const val DIRECT_SKIP_ARM_TIMEOUT_MS = 8_000L
 
         /**
          * Where the outgoing low-pass sits the instant a filter ride begins.
