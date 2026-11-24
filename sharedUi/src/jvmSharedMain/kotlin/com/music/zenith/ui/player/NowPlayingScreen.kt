@@ -54,6 +54,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -286,6 +288,13 @@ private const val QUEUE_FLICK_VELOCITY = 450f
 private val DISMISS_STRIP_HEIGHT = 32.dp
 /** The breathing room above the sleeve, needed twice: once to apply, once to measure past. */
 private val ART_BOX_TOP_PAD = 8.dp
+/**
+ * Most of the system navigation bar the player gives up as layout height. A gesture
+ * bar fits inside it; a three-button bar is taller, and subtracting all of it shrank
+ * the artwork, which is bound by the height left over. The remainder is drawn under
+ * the (transparent) bar instead.
+ */
+private val NAV_BAR_LAYOUT_CAP = 24.dp
 /**
  * Share of the motion-artwork banner's height given over to its dissolve.
  *
@@ -3751,7 +3760,11 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(stableStatusBarInsets())
-                        .navigationBarsPadding()
+                        .padding(
+                            bottom = WindowInsets.navigationBars.asPaddingValues()
+                                .calculateBottomPadding()
+                                .coerceAtMost(NAV_BAR_LAYOUT_CAP),
+                        )
                         // Observe unclaimed taps across the whole Canvas. Buttons and
                         // the compact metadata row consume their own taps first; empty
                         // video above or below them toggles the lower deck either way.
