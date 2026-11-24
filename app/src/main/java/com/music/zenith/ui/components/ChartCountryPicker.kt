@@ -313,8 +313,10 @@ fun ChartCountryMenu(
         backdrop = backdrop,
         hazeState = hazeState,
         placement = IosMenuPlacement.BelowStart,
+        dimBackground = false,
         glassRim = true,
         frostAlpha = 0.55f,
+        morphAlphaRamp = 1.8f,
     ) {
         ChartCountryMenuBody(options = options, selected = selected, onPick = onPick)
     }

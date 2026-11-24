@@ -3443,7 +3443,16 @@ private fun ZenithApp(
                                 onRetry = { viewModel.loadCharts(force = true) },
                                 onCountryChange = { viewModel.loadCharts(it) },
                                 countryButton = { label, onClick ->
-                                    ChartCountryButton(label = label, onClick = onClick)
+                                    val buttonAlpha by animateFloatAsState(
+                                        targetValue = if (chartCountryMenuOpen) 0f else 1f,
+                                        animationSpec = tween(durationMillis = 160),
+                                        label = "chartCountryButtonAlpha",
+                                    )
+                                    ChartCountryButton(
+                                        label = label,
+                                        onClick = onClick,
+                                        modifier = Modifier.graphicsLayer { alpha = buttonAlpha },
+                                    )
                                 },
                                 onCountryMenu = { anchor ->
                                     chartCountryAnchor = anchor
