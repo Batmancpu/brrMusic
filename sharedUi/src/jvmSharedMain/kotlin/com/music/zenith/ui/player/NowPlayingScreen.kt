@@ -5885,7 +5885,10 @@ Spacer(Modifier.width(12.dp))
                     Column(
                         modifier = Modifier
                             .widthIn(max = PLAYER_MAX_WIDTH)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            // Live canvas: popups blur off the haze, not a still,
+                            // so the deck must be a source or it vanishes behind them.
+                            .then(if (liveBackdropOn) Modifier.hazeSource(playerHaze) else Modifier),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                     // Current lyric, one line, directly above the scrubber. It stays in
