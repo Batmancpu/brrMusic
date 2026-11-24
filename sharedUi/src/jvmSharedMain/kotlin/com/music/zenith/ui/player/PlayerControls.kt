@@ -1954,7 +1954,7 @@ private fun LosslessOrStats(
             detail = nerdStats,
             modifier = modifier,
         )
-        nerdStats?.isDolbyAtmos == true || dolbyAtmosActive -> LosslessLabel(
+        nerdStats?.isDolbyAtmos == true -> LosslessLabel(
             text = "Dolby Atmos",
             animated = true,
             iconPainter = painterResource(Res.drawable.ic_dolby_atmos),
@@ -1980,6 +1980,14 @@ private fun LosslessOrStats(
             iconPainter = rememberVectorPainter(Icons.Rounded.Headphones),
             // A Material glyph's own size is 24dp; the badge's are drawn small.
             iconSize = 13.dp,
+            modifier = modifier,
+        )
+        // Fallback: no quality badge applies, but Atmos is switched on in
+        // settings and playable on this device, so its badge stays visible.
+        dolbyAtmosActive -> LosslessLabel(
+            text = "Dolby Atmos",
+            animated = true,
+            iconPainter = painterResource(Res.drawable.ic_dolby_atmos),
             modifier = modifier,
         )
         // Below that, no badge: "Medium Quality" and "Data Saver" are gone.
