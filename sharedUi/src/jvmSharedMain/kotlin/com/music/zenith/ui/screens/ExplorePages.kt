@@ -77,6 +77,8 @@ import com.music.zenith.ui.components.PAGE_GUTTER
 import com.music.zenith.ui.components.feedSkeleton
 import com.music.zenith.ui.components.instantPressClickable
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.music.zenith.ui.components.ShelfRow
 
 /** The countries YouTube Music publishes charts for; "ZZ" is Global. */
 val CHART_COUNTRY_CODES: List<String> = listOf(
@@ -291,7 +293,7 @@ private fun LazyListScope.newReleasesPageItems(
                 onAction = onRetry,
             )
         }
-        is UiState.Success -> state.data.forEachIndexed { shelfIndex, shelf ->
+        is UiState.Success -> splitNewReleasesHero(state.data).second.forEachIndexed { shelfIndex, shelf ->
             val shelfKey = "new-releases:$shelfIndex:${shelf.title}"
             val artists = isChartArtistShelf(shelf)
             val grid = !artists &&
@@ -326,34 +328,30 @@ private fun LazyListScope.newReleasesPageItems(
                 item(key = "$shelfKey:header") {
                     SectionHeader(shelf.title, shelf.subtitle)
                 }
-                itemsIndexed(
-                    shelf.items.chunked(2),
-                    key = { index, _ -> "$shelfKey:grid:$index" },
-                    contentType = { _, _ -> "release-grid-row" },
-                ) { _, pair ->
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = PAGE_GUTTER)
-                            .padding(bottom = 16.dp),
-                    ) {
-                        pair.forEach { card ->
-                            val current = card.videoId != null &&
-                                card.videoId == currentSong?.videoId
-                            ReleaseGridCard(
-                                item = card,
-                                isCurrent = current,
-                                isPlaying = current && isPlaying,
-                                onClick = { onShelfItemClick(card, shelf.title) },
-                                onLongPress = onShelfItemLongPress?.let { { it(card) } },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (pair.size < 2) Spacer(Modifier.weight(1f))
-                    }
+                item(key = "$shelfKey:grid", contentType = "release-grid") {
+                    ReleaseGridShelf(
+                        shelf = shelf,
+                        onItemClick = { onShelfItemClick(it, shelf.title) },
+                        onItemLongPress = onShelfItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
                 }
                 item(key = "$shelfKey:end") { Spacer(Modifier.height(14.dp)) }
+            } else if (shelf.layout == com.music.zenith.data.model.ShelfLayout.VIDEO) {
+                item(key = "$shelfKey:header") {
+                    SectionHeader(shelf.title, shelf.subtitle)
+                }
+                item(key = "$shelfKey:video", contentType = "release-video") {
+                    ReleaseVideoShelf(
+                        shelf = shelf,
+                        onItemClick = { onShelfItemClick(it, shelf.title) },
+                        onItemLongPress = onShelfItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
+                }
+                item(key = "$shelfKey:end") { Spacer(Modifier.height(26.dp)) }
             } else {
                 item(key = shelfKey) {
                     if (shelf.layout == com.music.zenith.data.model.ShelfLayout.LIST) {
@@ -374,6 +372,144 @@ private fun LazyListScope.newReleasesPageItems(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Splits off the two cards that lead the page. YouTube's own leading shelf (no heading,
+ * so it arrives titled "For you") is used when present; otherwise the first two covers
+ * of the first album grid take its place.
+ */
+private fun splitNewReleasesHero(
+    data: List<HomeShelf>,
+): Pair<List<ShelfItem>, List<HomeShelf>> {
+    val cards = com.music.zenith.data.model.ShelfLayout.CARDS
+    val lead = data.firstOrNull()
+    if (lead != null && lead.title == "For you" && lead.layout == cards &&
+        lead.items.isNotEmpty() && lead.items.none { it.isVideo } && !isChartArtistShelf(lead)
+    ) {
+        return lead.items.take(2) to data.drop(1)
+    }
+    val gridIndex = data.indexOfFirst { shelf ->
+        !isChartArtistShelf(shelf) && !isChartTrackShelf(shelf) &&
+            shelf.layout == cards && shelf.items.isNotEmpty() && shelf.items.none { it.isVideo }
+    }
+    if (gridIndex < 0) return emptyList<ShelfItem>() to data
+    val source = data[gridIndex]
+    val rest = source.items.drop(2)
+    val shelves = data.toMutableList().apply {
+        if (rest.isEmpty()) removeAt(gridIndex) else this[gridIndex] = source.copy(items = rest)
+    }
+    return source.items.take(2) to shelves
+}
+
+/** The two leading cards, side by side, with no heading above them. */
+@Composable
+private fun NewReleasesHero(
+    items: List<ShelfItem>,
+    onItemClick: (ShelfItem, String) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    val title = stringResource(Res.string.shelf_new_releases)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = PAGE_GUTTER)
+            .padding(bottom = 26.dp),
+    ) {
+        items.forEach { card ->
+            val current = card.videoId != null && card.videoId == currentSong?.videoId
+            ReleaseGridCard(
+                item = card,
+                isCurrent = current,
+                isPlaying = current && isPlaying,
+                onClick = { onItemClick(card, title) },
+                onLongPress = onItemLongPress?.let { { it(card) } },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (items.size < 2) Spacer(Modifier.weight(1f))
+    }
+}
+
+/** Albums & singles: two rows of covers that scroll sideways together, the next column peeking in. */
+@Composable
+private fun ReleaseGridShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    val columns = remember(shelf.items) { shelf.items.chunked(2) }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val cardWidth = (maxWidth - PAGE_GUTTER - 64.dp) / 2
+        ShelfRow(
+            state = rememberShelfListState("new-releases:grid:${shelf.title}"),
+            contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            itemsIndexed(
+                columns,
+                key = { index, _ -> "column:$index" },
+                contentType = { _, _ -> "release-grid-column" },
+            ) { _, pair ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.width(cardWidth),
+                ) {
+                    pair.forEach { card ->
+                        val current = card.videoId != null && card.videoId == currentSong?.videoId
+                        ReleaseGridCard(
+                            item = card,
+                            isCurrent = current,
+                            isPlaying = current && isPlaying,
+                            onClick = { onItemClick(card) },
+                            onLongPress = onItemLongPress?.let { { it(card) } },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Music videos: wide 16:9 cards in one sideways row, the next card peeking in. */
+@Composable
+private fun ReleaseVideoShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val cardWidth = maxWidth - PAGE_GUTTER - 33.dp
+        ShelfRow(
+            state = rememberShelfListState("new-releases:video:${shelf.title}"),
+            contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            itemsIndexed(
+                shelf.items,
+                key = { index, item -> "video:${item.videoId ?: item.browseId}:$index" },
+                contentType = { _, _ -> "release-video-card" },
+            ) { _, item ->
+                val current = item.videoId != null && item.videoId == currentSong?.videoId
+                VideoShelfCard(
+                    item = item,
+                    onClick = { onItemClick(item) },
+                    onLongPress = onItemLongPress?.let { { it(item) } },
+                    modifier = Modifier.width(cardWidth),
+                    isCurrent = current,
+                    isPlaying = current && isPlaying,
+                )
             }
         }
     }
@@ -400,6 +536,20 @@ fun NewReleasesPage(
         modifier = modifier.fillMaxSize(),
     ) {
         item(key = "new-releases-top") { Spacer(Modifier.height(8.dp)) }
+        (state as? UiState.Success)?.let { loaded ->
+            val hero = splitNewReleasesHero(loaded.data).first
+            if (hero.isNotEmpty()) {
+                item(key = "new-releases-hero") {
+                    NewReleasesHero(
+                        items = hero,
+                        onItemClick = onShelfItemClick,
+                        onItemLongPress = onShelfItemLongPress,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
+                    )
+                }
+            }
+        }
         newReleasesPageItems(
             state = state,
             onRetry = onRetry,
