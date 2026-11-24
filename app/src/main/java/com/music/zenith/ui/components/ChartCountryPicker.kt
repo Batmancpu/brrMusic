@@ -181,6 +181,7 @@ fun ChartCountryDropdown(
     )
     val p = progress.coerceIn(0f, 1f)
     BackHandler(enabled = expanded) { onExpandedChange(false) }
+    val touch = rememberJellyMenuTouch()
 
     // The capsule's natural width, measured once per label; the box grows from it.
     var collapsedWidth by remember(label) { mutableStateOf(0.dp) }
@@ -195,7 +196,7 @@ fun ChartCountryDropdown(
     }
     Column(
         modifier = modifier
-            .glassJelly(GLASS_JELLY_PRESS_WIDE)
+            .iosMenuJelly(touch, 0f, 0f)
             .then(widthModifier)
             .shadow(lerpDp(0.dp, 20.dp, p), shape, clip = false)
             .clip(shape)
@@ -207,8 +208,11 @@ fun ChartCountryDropdown(
                 },
             )
             .liquidGlassRim(shape)
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape),
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+            .touchGlow()
+            .iosMenuTouchHost(touch, colors.pressed),
     ) {
+        IosMenuScrollEnvironment(touch) {
         Row(
             modifier = Modifier
                 .onSizeChanged {
@@ -257,6 +261,7 @@ fun ChartCountryDropdown(
                         .fillMaxWidth(),
                 )
             }
+        }
         }
     }
 }
