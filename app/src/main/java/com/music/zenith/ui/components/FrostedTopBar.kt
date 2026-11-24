@@ -38,6 +38,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -681,9 +684,31 @@ fun TopBarAccountButton(
     // Gone at once as the card opens over it; back with a short fade as the card leaves.
     val visibility = animateFloatAsState(
         targetValue = if (hidden) 0f else 1f,
-        animationSpec = tween(durationMillis = if (hidden) 70 else 180),
+        animationSpec = tween(
+            durationMillis = if (hidden) 70 else 160,
+            // Held back until the card has folded down into the button.
+            delayMillis = if (hidden) 0 else 230,
+        ),
         label = "accountButtonVisibility",
     )
+    // The button springs back in once the card is gone, with a little bounce.
+    val popIn = remember { Animatable(1f) }
+    LaunchedEffect(hidden) {
+        if (hidden) {
+            popIn.snapTo(0.55f)
+        } else {
+            kotlinx.coroutines.delay(220)
+            popIn.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessLow))
+        }
+    }
+    val pressSource = remember { MutableInteractionSource() }
+    val pressed by pressSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.84f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
+        label = "accountButtonPress",
+    )
+    val buttonCoords = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val rawExtraActions = LocalActionsExtraFraction.current
     // Pecahan mentah melompat dalam satu frame saat aksi lain (share, unduhan)
     // muncul, padahal pil kaca tumbuh dengan pegas. Dihaluskan dengan pegas yang
@@ -705,9 +730,13 @@ fun TopBarAccountButton(
     // content to a 40dp circle, which would cut the photo short of the glass edge.
     Box(
         modifier = modifier
+            .onGloballyPositioned { buttonCoords[0] = it }
             .graphicsLayer {
                 translationY = translation.value
                 alpha = visibility.value
+                val touchScale = pressScale * popIn.value
+                scaleX = touchScale
+                scaleY = touchScale
             }
             .pointerInput(onSwipeProfile) {
                 if (onSwipeProfile == null) return@pointerInput
@@ -725,7 +754,19 @@ fun TopBarAccountButton(
             }
             .minimumInteractiveComponentSize()
             .clip(CircleShape)
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(
+                interactionSource = pressSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                role = Role.Button,
+                onClick = {
+                    buttonCoords[0]?.takeIf { it.isAttached }?.let {
+                        AccountPopupAnchor.center = it.localToWindow(
+                            androidx.compose.ui.geometry.Offset(it.size.width / 2f, it.size.height / 2f),
+                        )
+                    }
+                    onClick()
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         val photo = account?.thumbnailUrl

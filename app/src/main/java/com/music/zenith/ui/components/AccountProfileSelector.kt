@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
+import androidx.compose.ui.layout.onGloballyPositioned
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -65,6 +66,12 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
+
+/** Where the profile button was last tapped, in window pixels; read once by the account card. */
+internal object AccountPopupAnchor {
+    @Volatile
+    var center: androidx.compose.ui.geometry.Offset? = null
+}
 
 /** Shared compact selector for every visible YouTube account avatar. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
@@ -118,6 +125,10 @@ fun AccountProfileSelector(
     val cardFade = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
+    // Where the profile button sits, so the card grows out of it and folds back into it.
+    val anchor = remember { AccountPopupAnchor.center.also { AccountPopupAnchor.center = null } }
+    var cardOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var cardSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
 
     LaunchedEffect(Unit) {
         if (reduceMotion) {
@@ -172,14 +183,27 @@ fun AccountProfileSelector(
                 .padding(top = 56.dp, start = 20.dp, end = 12.dp)
                 .widthIn(max = 276.dp)
                 .fillMaxWidth()
+                .onGloballyPositioned {
+                    cardOrigin = it.localToWindow(androidx.compose.ui.geometry.Offset.Zero)
+                    cardSize = androidx.compose.ui.geometry.Size(
+                        it.size.width.toFloat(),
+                        it.size.height.toFloat(),
+                    )
+                }
                 .graphicsLayer {
                     val s = if (reduceMotion) 1f else pop.value.coerceAtLeast(0f)
                     scaleX = s
                     scaleY = s
                     alpha = (if (closing && !reduceMotion) cardFade.value else fade.value).coerceIn(0f, 1f)
-                    // Grows out of the corner under the profile button.
-                    transformOrigin = TransformOrigin(0.92f, 0f)
-                    if (!reduceMotion) applyIosMenuJelly(touch, s, 0.92f, 0f)
+                    // Grows out of, and folds back into, the profile button itself.
+                    val ox = if (anchor != null && cardSize.width > 0f) {
+                        (anchor.x - cardOrigin.x) / cardSize.width
+                    } else 0.92f
+                    val oy = if (anchor != null && cardSize.height > 0f) {
+                        (anchor.y - cardOrigin.y) / cardSize.height
+                    } else 0f
+                    transformOrigin = TransformOrigin(ox, oy)
+                    if (!reduceMotion) applyIosMenuJelly(touch, s, ox, oy)
                 }
                 .clip(shape)
                 .then(
