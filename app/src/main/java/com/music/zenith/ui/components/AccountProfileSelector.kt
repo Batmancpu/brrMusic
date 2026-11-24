@@ -203,7 +203,7 @@ fun AccountProfileSelector(
             shape = shape,
             modifier = Modifier
                 .padding(top = 56.dp, start = 20.dp, end = 12.dp)
-                .widthIn(max = 276.dp)
+                .widthIn(max = 236.dp)
                 .fillMaxWidth()
                 .onGloballyPositioned {
                     cardOrigin = it.localToWindow(androidx.compose.ui.geometry.Offset.Zero)
@@ -253,12 +253,19 @@ fun AccountProfileSelector(
             IosMenuScrollEnvironment(touch) {
             LazyColumn(
                 modifier = Modifier.heightIn(max = 440.dp).iosMenuTouchHost(touch, iosMenuColors().pressed),
-                contentPadding = PaddingValues(bottom = 8.dp),
+                contentPadding = PaddingValues(bottom = 6.dp),
             ) {
                 item {
                     ActiveProfileHeader(
                         profile = activeProfile,
                         reveal = { reveal.value },
+                    )
+                }
+                item {
+                    Box(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
+                            .height(0.5.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)),
                     )
                 }
                 if (hasOtherProfiles) accounts.forEach { account ->
@@ -341,16 +348,17 @@ fun AccountProfileSelector(
 @Composable private fun SelectorAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    iconSize: Dp = 22.dp,
+    iconSize: Dp = 20.dp,
     onClick: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp)
         .jellyMenuRow(onClick = onClick)
-        .heightIn(min = 44.dp)
-        .semantics { contentDescription = label }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        // In the avatars' column, so the labels line up with the names above.
-        Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(iconSize)) }
-        Spacer(Modifier.width(12.dp)); Text(label, style = MaterialTheme.typography.bodyLarge)
+        .heightIn(min = 40.dp)
+        .semantics { contentDescription = label }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Apple-style: the label leads, the glyph trails.
+        Text(label, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(12.dp))
+        Icon(icon, null, Modifier.size(iconSize))
     }
 }
 
@@ -366,30 +374,32 @@ fun AccountProfileSelector(
         scaleY = s
         alpha = r.coerceIn(0f, 1f)
     }
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-            .padding(top = 18.dp, bottom = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
+        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (profile?.avatar != null) {
-            AsyncImage(profile.avatar, null, Modifier.size(84.dp).then(revealFx).clip(CircleShape))
+            AsyncImage(profile.avatar, null, Modifier.size(44.dp).then(revealFx).clip(CircleShape))
         } else {
-            Icon(SfIcons.AccountPlaceholder, null, Modifier.size(84.dp).then(revealFx), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(SfIcons.AccountPlaceholder, null, Modifier.size(44.dp).then(revealFx), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            profile?.name.orEmpty(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.widthIn(max = 190.dp),
-        )
-        if (profile != null) {
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
             Text(
-                profile.handle.ifBlank { stringResource(if (profile.isBrandAccount) R.string.brand_account else R.string.personal) },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                profile?.name.orEmpty(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleSmall,
             )
+            if (profile != null) {
+                Text(
+                    profile.handle.ifBlank { stringResource(if (profile.isBrandAccount) R.string.brand_account else R.string.personal) },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
