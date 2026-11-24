@@ -1635,7 +1635,7 @@ private fun ZenithApp(
                 available: androidx.compose.ui.geometry.Offset,
                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
             ): androidx.compose.ui.geometry.Offset {
-                if (consumed.y != 0f) {
+                if (consumed.y != 0f && !chartCountryMenuOpen) {
                     val next = (pageScroll.floatValue - consumed.y).coerceAtLeast(0f)
                     pageScroll.floatValue = next
                     pageScrollByKey[pageScrollHolder.key] = next
@@ -3443,9 +3443,15 @@ private fun ZenithApp(
                                 onRetry = { viewModel.loadCharts(force = true) },
                                 onCountryChange = { viewModel.loadCharts(it) },
                                 countryDropdown = { expanded, onExpandedChange, onPick ->
-                                    LaunchedEffect(expanded) { chartCountryMenuOpen = expanded }
+                                    LaunchedEffect(expanded) {
+                                        chartCountryMenuOpen = expanded
+                                        navBarScroll.frozen = expanded
+                                    }
                                     androidx.compose.runtime.DisposableEffect(Unit) {
-                                        onDispose { chartCountryMenuOpen = false }
+                                        onDispose {
+                                            chartCountryMenuOpen = false
+                                            navBarScroll.frozen = false
+                                        }
                                     }
                                     ChartCountryDropdown(
                                         selected = chartsCountry,
