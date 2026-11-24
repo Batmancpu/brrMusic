@@ -155,7 +155,7 @@ private fun ShortcutCard(
         verticalArrangement = Arrangement.SpaceBetween,
         modifier = modifier
             .aspectRatio(1f)
-            .instantPressClickable(shape = shape, onClick = onClick)
+            .instantPressClickable(shape = shape, onClick = onClick, forgiving = true)
             .clip(shape)
             .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f), shape)
             .padding(16.dp),
