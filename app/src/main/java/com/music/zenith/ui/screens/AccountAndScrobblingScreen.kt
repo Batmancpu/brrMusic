@@ -583,15 +583,23 @@ private fun PremiumAudioCard(
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(accent.copy(alpha = 0.16f)),
+                .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = SfIcons.AutoAwesome,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(24.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(width = 28.dp, height = 20.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(androidx.compose.ui.graphics.Color(0xFFFF0000)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = SfIcons.Play,
+                    contentDescription = null,
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.size(11.dp),
+                )
+            }
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
