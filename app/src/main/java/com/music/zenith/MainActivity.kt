@@ -1524,7 +1524,7 @@ private fun ZenithApp(
     val newReleasesListState = rememberLazyListState()
     val chartsListState = rememberLazyListState()
     var chartCountryMenuOpen by remember { mutableStateOf(false) }
-    var chartCountryAnchor by remember { mutableStateOf<Rect?>(null) }
+
     val searchListState = rememberLazyListState()
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
@@ -3442,21 +3442,18 @@ private fun ZenithApp(
                                 onLoad = { viewModel.loadCharts() },
                                 onRetry = { viewModel.loadCharts(force = true) },
                                 onCountryChange = { viewModel.loadCharts(it) },
-                                countryButton = { label, onClick ->
-                                    val buttonAlpha by animateFloatAsState(
-                                        targetValue = if (chartCountryMenuOpen) 0f else 1f,
-                                        animationSpec = tween(durationMillis = 160),
-                                        label = "chartCountryButtonAlpha",
+                                countryDropdown = { expanded, onExpandedChange, onPick ->
+                                    LaunchedEffect(expanded) { chartCountryMenuOpen = expanded }
+                                    androidx.compose.runtime.DisposableEffect(Unit) {
+                                        onDispose { chartCountryMenuOpen = false }
+                                    }
+                                    ChartCountryDropdown(
+                                        selected = chartsCountry,
+                                        expanded = expanded,
+                                        onExpandedChange = onExpandedChange,
+                                        onPick = onPick,
+                                        backdrop = pageBackdrop,
                                     )
-                                    ChartCountryButton(
-                                        label = label,
-                                        onClick = onClick,
-                                        modifier = Modifier.graphicsLayer { alpha = buttonAlpha },
-                                    )
-                                },
-                                onCountryMenu = { anchor ->
-                                    chartCountryAnchor = anchor
-                                    chartCountryMenuOpen = true
                                 },
                                 onShelfItemClick = onExploreShelfClick,
                                 onShelfItemLongPress = onShelfLongPress,
@@ -6505,18 +6502,6 @@ private fun ZenithApp(
             ) { target ->
                 browseMenuBody(target)
             }
-            ChartCountryMenu(
-                open = chartCountryMenuOpen,
-                anchor = chartCountryAnchor,
-                selected = chartsCountry,
-                onPick = { code ->
-                    chartCountryMenuOpen = false
-                    if (code != chartsCountry) viewModel.loadCharts(code)
-                },
-                onDismiss = { chartCountryMenuOpen = false },
-                backdrop = pageBackdrop,
-                hazeState = hazeState,
-            )
             LaunchedEffect(browseActions == null) {
                 if (browseActions == null) {
                     browseMenuOrigin = null
