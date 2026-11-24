@@ -76,6 +76,10 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 internal object AccountPopupAnchor {
     @Volatile
     var center: androidx.compose.ui.geometry.Offset? = null
+
+    /** Window y where the card's top edge should sit; null keeps the top-bar default. */
+    @Volatile
+    var top: Float? = null
 }
 
 /** Shared compact selector for every visible YouTube account avatar. */
@@ -149,6 +153,9 @@ fun AccountProfileSelector(
     var closing by remember { mutableStateOf(false) }
     // Where the profile button sits, so the card grows out of it and folds back into it.
     val anchor = remember { AccountPopupAnchor.center.also { AccountPopupAnchor.center = null } }
+    val anchorTop = remember { AccountPopupAnchor.top.also { AccountPopupAnchor.top = null } }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val topPad = anchorTop?.let { with(density) { it.toDp() } }?.coerceAtMost(360.dp) ?: 56.dp
     var cardOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var cardSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
 
@@ -202,7 +209,7 @@ fun AccountProfileSelector(
             contentColor = MaterialTheme.colorScheme.onSurface,
             shape = shape,
             modifier = Modifier
-                .padding(top = 56.dp, start = 20.dp, end = 12.dp)
+                .padding(top = topPad, start = 20.dp, end = 12.dp)
                 .widthIn(max = 236.dp)
                 .fillMaxWidth()
                 .onGloballyPositioned {

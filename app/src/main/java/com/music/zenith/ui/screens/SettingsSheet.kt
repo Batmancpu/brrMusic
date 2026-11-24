@@ -121,6 +121,10 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import com.music.zenith.ui.components.AccountPopupAnchor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -2590,9 +2594,11 @@ internal fun AccountCard(
     /** Sits inside a [SettingsGroup] that already supplies the card, so draws none of its own. */
     grouped: Boolean = false,
 ) {
+    var bounds by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .onGloballyPositioned { bounds = it }
             .then(
                 if (grouped) {
                     Modifier
@@ -2605,7 +2611,19 @@ internal fun AccountCard(
             )
             .then(
                 when {
-                    signedIn && onClick != null -> Modifier.clickable(onClick = onClick)
+                    signedIn && onClick != null -> Modifier.clickable(onClick = {
+                        // Tells the account popup where it was opened from, so it
+                        // sits beside this row and grows out of its chevron.
+                        bounds?.takeIf { it.isAttached }?.let { c ->
+                            val origin = c.positionInWindow()
+                            AccountPopupAnchor.center = androidx.compose.ui.geometry.Offset(
+                                origin.x + c.size.width * 0.94f,
+                                origin.y + c.size.height / 2f,
+                            )
+                            AccountPopupAnchor.top = origin.y
+                        }
+                        onClick()
+                    })
                     !signedIn -> Modifier.clickable(onClick = onSignIn)
                     else -> Modifier
                 },
