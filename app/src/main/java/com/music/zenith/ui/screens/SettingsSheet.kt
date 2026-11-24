@@ -2139,7 +2139,7 @@ fun SettingsScreen(
                         color = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color.Black else Color.White,
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier.clickable {
-                            context.openLink("https://github.com/rezapranata089-bit")
+                            context.openLink("https://www.tiktok.com/@zeux.editz?_r=1&_t=ZS-9BgOcHcAans")
                         },
                     )
                     Text(
