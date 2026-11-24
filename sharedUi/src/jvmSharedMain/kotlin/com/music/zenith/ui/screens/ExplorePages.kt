@@ -507,6 +507,7 @@ private fun ReleaseVideoShelf(
                     onClick = { onItemClick(item) },
                     onLongPress = onItemLongPress?.let { { it(item) } },
                     modifier = Modifier.width(cardWidth),
+                    aspect = 16f / 9f,
                     isCurrent = current,
                     isPlaying = current && isPlaying,
                 )
