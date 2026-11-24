@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
 import com.music.zenith.ui.icons.SfIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -85,6 +88,7 @@ fun AccountProfileSelector(
     onAddAccount: () -> Unit,
     onRemoveAccount: (GoogleAccountSession) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenEqualizer: () -> Unit,
     onDismiss: () -> Unit,
     /** Called the moment the exit starts, so what the card covered can come back with it. */
     onClosing: () -> Unit = {},
@@ -94,6 +98,23 @@ fun AccountProfileSelector(
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val reduceMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val profileOverride by AppSettings.profileOverride.collectAsStateWithLifecycle()
+    // Account list stays folded behind the centered profile until it is tapped.
+    var switching by remember { mutableStateOf(false) }
+    val activeProfile = accounts.firstOrNull { it.accountId == activeAccountId }?.let { acc ->
+        acc.profiles.firstOrNull { it.profileId == activeProfileId }?.let { raw ->
+            if (profileOverride.owner == AppSettings.profileOwnerOf(acc.email)) {
+                val photo = profileOverride.photoPath
+                    .takeIf { it.isNotEmpty() && java.io.File(it).exists() }
+                    ?.let { "file://$it" }
+                raw.copy(
+                    name = profileOverride.name.ifBlank { raw.name },
+                    avatar = photo ?: raw.avatar,
+                )
+            } else {
+                raw
+            }
+        }
+    }
     val touch = rememberIosMenuTouch(reduceMotion)
     val shape = RoundedCornerShape(22.dp)
     val surface = MaterialTheme.colorScheme.surface
@@ -233,10 +254,15 @@ fun AccountProfileSelector(
                 modifier = Modifier.heightIn(max = 440.dp).iosMenuTouchHost(touch, iosMenuColors().pressed),
                 contentPadding = PaddingValues(bottom = 8.dp),
             ) {
-                item { Text(stringResource(R.string.switch_account), style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(18.dp, 14.dp, 18.dp, 4.dp)) }
-                accounts.forEach { account ->
+                item {
+                    ActiveProfileHeader(
+                        profile = activeProfile,
+                        switching = switching,
+                        reveal = { reveal.value },
+                        onClick = { switching = !switching },
+                    )
+                }
+                if (switching) accounts.forEach { account ->
                 item {
                     Text(account.email.ifBlank { account.name.ifBlank { stringResource(R.string.accounts) } },
                         style = MaterialTheme.typography.labelMedium,
@@ -268,9 +294,12 @@ fun AccountProfileSelector(
                     )
                 }
                 }
-                item { SelectorAction(SfIcons.AddAccount, stringResource(R.string.add_account), onClick = { close(onAddAccount) }) }
-                // A wide glyph — two people and a gear — drawn a size up to match the others.
-                item { SelectorAction(SfIcons.ManageAccounts, stringResource(R.string.manage_accounts), iconSize = 26.dp) { managing = !managing } }
+                if (switching) {
+                    item { SelectorAction(SfIcons.AddAccount, stringResource(R.string.add_account), onClick = { close(onAddAccount) }) }
+                    // A wide glyph — two people and a gear — drawn a size up to match the others.
+                    item { SelectorAction(SfIcons.ManageAccounts, stringResource(R.string.manage_accounts), iconSize = 26.dp) { managing = !managing } }
+                }
+                item { SelectorAction(SfIcons.Tune, stringResource(R.string.equalizer), onClick = { close(onOpenEqualizer) }) }
                 item { SelectorAction(SfIcons.Settings, stringResource(R.string.settings), onClick = { close(onOpenSettings) }) }
             }
             }
@@ -320,5 +349,58 @@ fun AccountProfileSelector(
         // In the avatars' column, so the labels line up with the names above.
         Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(iconSize)) }
         Spacer(Modifier.width(12.dp)); Text(label, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** The active profile, centered: big avatar, name under it, handle under that. Tap to fold the account list open. */
+@Composable private fun ActiveProfileHeader(
+    profile: YouTubeProfile?,
+    switching: Boolean,
+    reveal: () -> Float,
+    onClick: () -> Unit,
+) {
+    val description = stringResource(R.string.switch_account)
+    val revealFx = Modifier.graphicsLayer {
+        val r = reveal()
+        val s = r.coerceAtLeast(0f)
+        scaleX = s
+        scaleY = s
+        alpha = r.coerceIn(0f, 1f)
+    }
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            .jellyMenuRow(onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(top = 18.dp, bottom = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (profile?.avatar != null) {
+            AsyncImage(profile.avatar, null, Modifier.size(84.dp).then(revealFx).clip(CircleShape))
+        } else {
+            Icon(SfIcons.AccountPlaceholder, null, Modifier.size(84.dp).then(revealFx), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                profile?.name.orEmpty(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.widthIn(max = 190.dp),
+            )
+            Icon(
+                Icons.Rounded.KeyboardArrowDown,
+                null,
+                Modifier.size(20.dp).graphicsLayer { rotationZ = if (switching) 180f else 0f },
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (profile != null) {
+            Text(
+                profile.handle.ifBlank { stringResource(if (profile.isBrandAccount) R.string.brand_account else R.string.personal) },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

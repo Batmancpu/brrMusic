@@ -6773,6 +6773,10 @@ private fun ZenithApp(
                     showAccountSelector = false
                     navigator.push(AppRoute.Settings)
                 },
+                onOpenEqualizer = {
+                    showAccountSelector = false
+                    navigator.push(AppRoute.Equalizer)
+                },
                 onDismiss = { showAccountSelector = false },
                 onClosing = { accountSelectorLeaving = true },
             )
