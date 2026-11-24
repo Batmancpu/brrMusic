@@ -579,6 +579,15 @@ private const val DOCK_FADE_FULL = 0.6f
 /** The least the faded player is drawn at while docking — see the player's fade. */
 private const val DOCK_FADE_FLOOR = 1f / 255f
 
+/**
+ * Deck bawah Spotify Canvas (bar progres, lirik, kontrol) sudah solid penuh di
+ * [DOCK_DECK_GONE] + [DOCK_DECK_SOLID_SPAN] dan hilang total di [DOCK_DECK_GONE].
+ * Tepi bawah panel yang naik saat menutup memotongnya sebelum fade player mulai,
+ * jadi deck dipudarkan lebih awal daripada bagian player lainnya.
+ */
+private const val DOCK_DECK_GONE = 0.78f
+private const val DOCK_DECK_SOLID_SPAN = 0.2f
+
 /** Lama clip animasi cover (Apple/Spotify) padam ke thumbnail saat mix/crossfade mulai, dan kembali setelahnya. */
 private const val CLIP_MIX_FADE_OUT_MS = 900
 private const val CLIP_MIX_FADE_IN_MS = 500
@@ -2416,6 +2425,16 @@ fun NowPlayingScreen(
     // The rest of the player gets out of the way a little ahead of the artwork,
     // so the cover lands on the bar rather than on a ghost of the player.
     val dockFade: () -> Float = { ((dockT() - DOCK_FADE_LEAD) / (DOCK_FADE_FULL - DOCK_FADE_LEAD)).coerceIn(0f, 1f) }
+    // Deck Spotify Canvas memudar lebih awal saat player menutup, supaya bar progres
+    // dan lirik tidak terpotong keras oleh tepi bawah panel selagi masih solid.
+    // Dibaca di graphicsLayer (draw phase), jadi tidak recompose per frame.
+    val deckDockFade: () -> Float = {
+        if (!spotifyCanvasPresentation) {
+            1f
+        } else {
+            ((dockT() - DOCK_DECK_GONE) / DOCK_DECK_SOLID_SPAN).coerceIn(0f, 1f)
+        }
+    }
 
     // The clip's own frame, standing in for it while the sleeve moves — so
     // opening, closing, and collapsing into the lyrics or the queue carry
@@ -5843,7 +5862,7 @@ Spacer(Modifier.width(12.dp))
                                 }
                                 .height(SPOTIFY_MINI_SCRUBBER_HEIGHT)
                                 .padding(bottom = SPOTIFY_MINI_SCRUBBER_LIFT)
-                                .graphicsLayer { alpha = 1f - playerDeckReveal.value },
+                                .graphicsLayer { alpha = (1f - playerDeckReveal.value) * deckDockFade() },
                             contentAlignment = Alignment.BottomCenter,
                         ) {
                             PlayerScrubber(
@@ -5883,6 +5902,7 @@ Spacer(Modifier.width(12.dp))
                             (!queueOpen || queueControlsOpen) &&
                             (!spotifyCanvasPresentation || spotifyCanvasControlsOpen || transitionHold),
                         reveal = playerDeckReveal,
+                        modifier = Modifier.graphicsLayer { alpha = deckDockFade() },
                         // Back to the main player from lyrics or the queue with the
                         // deck stood down: the sleeve is about to come back out, so
                         // the deck has to hold its full height from the first frame.
