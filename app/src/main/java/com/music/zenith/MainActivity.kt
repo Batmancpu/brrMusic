@@ -3519,10 +3519,14 @@ private fun ZenithApp(
                                 contentPadding = listPadding,
                             )
                         } else if (pageRoute == AppRoute.AccountScrobbling) {
+                            // Brand profiles are only known once the channel list has been
+                            // fetched, so fetch it on arrival rather than on the first tap.
+                            LaunchedEffect(signedIn) { if (signedIn) viewModel.loadChannels() }
                             AccountAndScrobblingScreen(
                                 signedIn = signedIn,
                                 account = account,
                                 channelName = selectedChannelName,
+                                canSwitchProfile = googleAccounts.sumOf { it.profiles.size } > 1,
                                 onSignIn = {
                                     navigator.clear()
                                     webSession = WebSessionMode.SIGN_IN

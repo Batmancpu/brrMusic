@@ -261,6 +261,7 @@ fun AccountAndScrobblingScreen(
     channelName: String?,
     onSignIn: () -> Unit,
     onSwitchChannel: () -> Unit,
+    canSwitchProfile: Boolean = true,
     onSignOut: () -> Unit,
     onOpenListenBrainzLogin: () -> Unit,
     onOpenLastfmLogin: () -> Unit,
@@ -307,7 +308,7 @@ fun AccountAndScrobblingScreen(
                 signedIn = signedIn,
                 account = account,
                 onSignIn = onSignIn,
-                onClick = onSwitchChannel,
+                onClick = onSwitchChannel.takeIf { canSwitchProfile },
                 grouped = true,
             )
             if (signedIn) {
