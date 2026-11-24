@@ -3919,6 +3919,10 @@ fun NowPlayingScreen(
                                     // never mind where the sleeve is in between.
                                     val panelUp = queueOpen || lyricsOpen ||
                                         queueSlide.floatValue > 0.01f
+                                    // Canvas with its deck hidden: the queue cannot be
+                                    // dragged in until the player is shown again.
+                                    val canvasHidden = spotifyCanvasPresentation &&
+                                        !spotifyCanvasControlsOpen && !panelUp
                                     val bandTop: Float
                                     val bandBottom: Float
                                     if (panelUp) {
@@ -3930,7 +3934,7 @@ fun NowPlayingScreen(
                                         bandBottom = dismissBandBottom
                                     }
                                     if (y >= bandTop && y <= bandBottom) {
-                                        if (!panelUp) {
+                                        if (!panelUp && !canvasHidden) {
                                             dragQueueIn(
                                                 down = down,
                                                 travel = bandBottom - bandTop -
