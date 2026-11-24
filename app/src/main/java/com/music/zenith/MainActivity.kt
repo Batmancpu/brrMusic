@@ -3982,7 +3982,7 @@ private fun ZenithApp(
                                 refreshing = MainViewModel.Feed.EXPLORE in refreshing,
                                 onNewReleases = { navigator.push(AppRoute.NewReleases) },
                                 onCharts = { navigator.push(AppRoute.Charts) },
-                                onMoods = { selectedTab = TAB_SEARCH },
+                                onMoods = { navigator.push(AppRoute.Moods) },
                                 onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                                 pullState = explorePull,
                                 contentPadding = listPadding,
@@ -4486,6 +4486,7 @@ private fun ZenithApp(
                             AppRoute.ListenTogether -> stringResource(R.string.listen_together)
                             AppRoute.Sources -> stringResource(R.string.source)
                             AppRoute.Charts -> "Chart"
+                            AppRoute.Moods -> stringResource(R.string.find_your_mood)
                             AppRoute.NewReleases -> stringResource(R.string.shelf_new_releases)
                             else -> null
                         }
