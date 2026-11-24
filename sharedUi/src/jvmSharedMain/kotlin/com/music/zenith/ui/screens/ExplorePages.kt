@@ -31,6 +31,11 @@ import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -439,16 +444,29 @@ fun ChartsPage(
     countryButton: (@Composable (label: String, onClick: (Rect) -> Unit) -> Unit)? = null,
     /** Asked to open the country popup from the opener's bounds; the host draws the popup. */
     onCountryMenu: ((Rect) -> Unit)? = null,
+    /**
+     * Draws the country picker as one box that grows into its own dropdown. It is placed over
+     * the list at the spot of the first row, so opening it never pushes the shelves around.
+     */
+    countryDropdown: (@Composable (
+        expanded: Boolean,
+        onExpandedChange: (Boolean) -> Unit,
+        onPick: (String) -> Unit,
+    ) -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) { onLoad() }
     var picking by remember { mutableStateOf(false) }
+    var dropdownOpen by remember { mutableStateOf(false) }
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
     ) {
         item(key = "charts-country") {
-            if (countryButton != null && onCountryMenu != null) {
+            if (countryDropdown != null) {
+                Spacer(Modifier.padding(top = 8.dp, bottom = 22.dp).size(width = 1.dp, height = 42.dp))
+            } else if (countryButton != null && onCountryMenu != null) {
                 Box(
                     Modifier
                         .padding(horizontal = PAGE_GUTTER)
@@ -490,6 +508,34 @@ fun ChartsPage(
             currentSong = currentSong,
             isPlaying = isPlaying,
         )
+    }
+        if (countryDropdown != null) {
+            val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+            LaunchedEffect(atTop) { if (!atTop) dropdownOpen = false }
+            if (dropdownOpen) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) { detectTapGestures { dropdownOpen = false } },
+                )
+            }
+            if (atTop) {
+                Box(
+                    Modifier.offset {
+                        IntOffset(
+                            PAGE_GUTTER.roundToPx(),
+                            contentPadding.calculateTopPadding().roundToPx() + 8.dp.roundToPx() -
+                                listState.firstVisibleItemScrollOffset,
+                        )
+                    },
+                ) {
+                    countryDropdown(dropdownOpen, { dropdownOpen = it }) { code ->
+                        dropdownOpen = false
+                        if (code != country) onCountryChange(code)
+                    }
+                }
+            }
+        }
     }
     if (picking && (countryButton == null || onCountryMenu == null)) {
         ChartCountrySheet(

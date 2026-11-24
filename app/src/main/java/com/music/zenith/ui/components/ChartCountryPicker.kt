@@ -1,6 +1,27 @@
 package com.music.zenith.ui.components
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp as lerpColor
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,6 +140,153 @@ private fun UpDownChevrons(color: Color, modifier: Modifier = Modifier) {
         }
         drawPath(up, color, style = stroke)
         drawPath(down, color, style = stroke)
+    }
+}
+
+/** The dropdown's width once open; the capsule widens from its own width to this. */
+private val COUNTRY_DROPDOWN_WIDTH = 264.dp
+
+/**
+ * The Charts country picker as ONE box: the capsule button itself widens and
+ * drops down into the country list, and folds back into the capsule on close.
+ * Nothing else opens; the list is revealed inside the same surface. The host
+ * owns [expanded] and draws this over the page, so growing never pushes the
+ * content below it.
+ */
+@Composable
+fun ChartCountryDropdown(
+    selected: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val options = remember { chartCountryOptions() }
+    val label = options.firstOrNull { it.code == selected }?.name ?: selected
+    val colors = iosMenuColors()
+    val content = MaterialTheme.colorScheme.onSurface
+    val density = LocalDensity.current
+    val progress by animateFloatAsState(
+        targetValue = if (expanded) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+        label = "chartCountryDropdown",
+    )
+    val p = progress.coerceIn(0f, 1f)
+    BackHandler(enabled = expanded) { onExpandedChange(false) }
+
+    // The capsule's natural width, measured once per label; the box grows from it.
+    var collapsedWidth by remember(label) { mutableStateOf(0.dp) }
+    // Radius 26dp is clamped to a full capsule while the box is one button tall.
+    val shape = remember { RoundedCornerShape(26.dp) }
+    val fill = lerpColor(content.copy(alpha = 0.08f), colors.fill, p)
+    val widthModifier = if (collapsedWidth > 0.dp) {
+        Modifier.width(lerpDp(collapsedWidth, maxOf(collapsedWidth, COUNTRY_DROPDOWN_WIDTH), p))
+    } else {
+        Modifier
+    }
+    Column(
+        modifier = modifier
+            .then(if (!expanded && p == 0f) Modifier.glassJelly(GLASS_JELLY_PRESS_WIDE) else Modifier)
+            .then(widthModifier)
+            .shadow(lerpDp(0.dp, 20.dp, p), shape, clip = false)
+            .clip(shape)
+            .background(fill, shape)
+            .liquidGlassRim(shape)
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape),
+    ) {
+        Row(
+            modifier = Modifier
+                .onSizeChanged {
+                    if (collapsedWidth == 0.dp) collapsedWidth = with(density) { it.width.toDp() }
+                }
+                .then(if (collapsedWidth > 0.dp) Modifier.fillMaxWidth() else Modifier)
+                .height(42.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    role = Role.Button,
+                    onClick = { onExpandedChange(!expanded) },
+                )
+                .padding(start = 20.dp, end = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = label,
+                color = content,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = 200.dp)
+                    .padding(end = 10.dp),
+            )
+            UpDownChevrons(color = content.copy(alpha = 0.72f))
+        }
+        if (p > 0f) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(lerpDp(0.dp, COUNTRY_LIST_MAX_HEIGHT, p))
+                    .clipToBounds()
+                    .graphicsLayer { alpha = ((p - 0.1f) / 0.6f).coerceIn(0f, 1f) },
+            ) {
+                CountryDropdownList(
+                    options = options,
+                    selected = selected,
+                    colors = colors,
+                    onPick = onPick,
+                    modifier = Modifier
+                        .requiredHeight(COUNTRY_LIST_MAX_HEIGHT)
+                        .fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CountryDropdownList(
+    options: List<ChartCountryOption>,
+    selected: String,
+    colors: IosMenuColors,
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Opens with the chosen country in view rather than at the top of the list.
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (options.indexOfFirst { it.code == selected } - 1).coerceAtLeast(0),
+    )
+    Column(modifier) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(colors.separator),
+        )
+        Text(
+            text = "Select a country",
+            color = colors.secondaryLabel,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 10.dp, bottom = 6.dp),
+        )
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(bottom = 8.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            items(options, key = { it.code }) { option ->
+                IosMenuRow(
+                    label = option.name,
+                    icon = if (option.code == selected) SfIcons.Check else null,
+                    onClick = { onPick(option.code) },
+                    compact = true,
+                )
+                if (option.code == "ZZ") IosMenuSeparator(colors)
+            }
+        }
     }
 }
 
