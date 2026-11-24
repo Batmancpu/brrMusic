@@ -33,9 +33,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
+import com.music.zenith.data.settings.ThemeMode
 import com.music.zenith.ui.icons.SfIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -94,12 +96,11 @@ fun AccountProfileSelector(
     onClosing: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var managing by remember { mutableStateOf(false) }
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val reduceMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val profileOverride by AppSettings.profileOverride.collectAsStateWithLifecycle()
-    // Account list stays folded behind the centered profile until it is tapped.
-    var switching by remember { mutableStateOf(false) }
+    // Switching list is only useful when there is more than one profile to pick from.
+    val hasOtherProfiles = accounts.sumOf { it.profiles.size } > 1
     val activeProfile = accounts.firstOrNull { it.accountId == activeAccountId }?.let { acc ->
         acc.profiles.firstOrNull { it.profileId == activeProfileId }?.let { raw ->
             if (profileOverride.owner == AppSettings.profileOwnerOf(acc.email)) {
@@ -257,12 +258,10 @@ fun AccountProfileSelector(
                 item {
                     ActiveProfileHeader(
                         profile = activeProfile,
-                        switching = switching,
                         reveal = { reveal.value },
-                        onClick = { switching = !switching },
                     )
                 }
-                if (switching) accounts.forEach { account ->
+                if (hasOtherProfiles) accounts.forEach { account ->
                 item {
                     Text(account.email.ifBlank { account.name.ifBlank { stringResource(R.string.accounts) } },
                         style = MaterialTheme.typography.labelMedium,
@@ -287,17 +286,20 @@ fun AccountProfileSelector(
                     ProfileRow(
                         profile = profile,
                         selected = selected,
-                        managing = managing,
+                        managing = false,
                         reveal = { reveal.value },
                         onClick = { onSelect(account, profile); close(onDismiss) },
                         onRemove = { close { onRemoveAccount(account) } },
                     )
                 }
                 }
-                if (switching) {
-                    item { SelectorAction(SfIcons.AddAccount, stringResource(R.string.add_account), onClick = { close(onAddAccount) }) }
-                    // A wide glyph — two people and a gear — drawn a size up to match the others.
-                    item { SelectorAction(SfIcons.ManageAccounts, stringResource(R.string.manage_accounts), iconSize = 26.dp) { managing = !managing } }
+                item { SelectorAction(SfIcons.AddAccount, stringResource(R.string.add_account), onClick = { close(onAddAccount) }) }
+                item {
+                    SelectorAction(
+                        if (dark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
+                        stringResource(if (dark) R.string.light else R.string.dark),
+                        onClick = { AppSettings.setThemeMode(if (dark) ThemeMode.LIGHT else ThemeMode.DARK) },
+                    )
                 }
                 item { SelectorAction(SfIcons.Tune, stringResource(R.string.equalizer), onClick = { close(onOpenEqualizer) }) }
                 item { SelectorAction(SfIcons.Settings, stringResource(R.string.settings), onClick = { close(onOpenSettings) }) }
@@ -355,11 +357,8 @@ fun AccountProfileSelector(
 /** The active profile, centered: big avatar, name under it, handle under that. Tap to fold the account list open. */
 @Composable private fun ActiveProfileHeader(
     profile: YouTubeProfile?,
-    switching: Boolean,
     reveal: () -> Float,
-    onClick: () -> Unit,
 ) {
-    val description = stringResource(R.string.switch_account)
     val revealFx = Modifier.graphicsLayer {
         val r = reveal()
         val s = r.coerceAtLeast(0f)
@@ -369,8 +368,6 @@ fun AccountProfileSelector(
     }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-            .jellyMenuRow(onClick = onClick)
-            .semantics { contentDescription = description }
             .padding(top = 18.dp, bottom = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -380,21 +377,13 @@ fun AccountProfileSelector(
             Icon(SfIcons.AccountPlaceholder, null, Modifier.size(84.dp).then(revealFx), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                profile?.name.orEmpty(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.widthIn(max = 190.dp),
-            )
-            Icon(
-                Icons.Rounded.KeyboardArrowDown,
-                null,
-                Modifier.size(20.dp).graphicsLayer { rotationZ = if (switching) 180f else 0f },
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            profile?.name.orEmpty(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.widthIn(max = 190.dp),
+        )
         if (profile != null) {
             Text(
                 profile.handle.ifBlank { stringResource(if (profile.isBrandAccount) R.string.brand_account else R.string.personal) },
