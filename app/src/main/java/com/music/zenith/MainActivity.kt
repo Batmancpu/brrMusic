@@ -154,6 +154,7 @@ import com.music.zenith.ui.AddonBlockedAlert
 import com.music.zenith.data.settings.LibrarySort
 import com.music.zenith.data.settings.ThemeMode
 import com.music.zenith.ui.components.AccountProfileSelector
+import com.music.zenith.ui.components.ChartCountryDropdown
 import com.music.zenith.ui.components.JellyMenuBody
 import com.music.zenith.ui.components.iosMenuJelly
 import com.music.zenith.ui.components.jellyMenuRow
@@ -1009,6 +1010,7 @@ private fun ZenithApp(
     // Menu sumber (YouTube / Library / Addons) yang diminta globe di bar pencarian.
     // Digambar di root, di luar Column bar, supaya tidak memakan layout bar.
     var searchSourceMenu by remember { mutableStateOf<SourceMenuRequest?>(null) }
+    // Dropdown negara Charts memegang state buka/tutupnya sendiri di dalam ChartsPage.
     // Whether the field opened out of the collapsed (inline) nav bar, and how far
     // the bar has opened: the mini player rises and widens on that same spring.
     var searchFromInline by remember { mutableStateOf(false) }
@@ -3436,6 +3438,14 @@ private fun ZenithApp(
                                 onLoad = { viewModel.loadCharts() },
                                 onRetry = { viewModel.loadCharts(force = true) },
                                 onCountryChange = { viewModel.loadCharts(it) },
+                                countryDropdown = { expanded, onExpandedChange, onPick ->
+                                    ChartCountryDropdown(
+                                        selected = chartsCountry,
+                                        expanded = expanded,
+                                        onExpandedChange = onExpandedChange,
+                                        onPick = onPick,
+                                    )
+                                },
                                 onShelfItemClick = onExploreShelfClick,
                                 onShelfItemLongPress = onShelfLongPress,
                                 currentSong = player.song,
@@ -4403,12 +4413,20 @@ private fun ZenithApp(
                             .graphicsLayer { alpha = topFadeAlpha },
                     )
                 } else {
+                    // The search filter control lives in the page, under this app-level
+                    // strip, so the strip blurred it. While the control is up the page
+                    // frosts its own header band, so the strip steps aside.
+                    val topFadeBlurHide by animateFloatAsState(
+                        targetValue = if (searchFilterBarShown) 0f else 1f,
+                        animationSpec = tween(durationMillis = 220),
+                        label = "topFadeBlurSearchFilter",
+                    )
                     TopFadeBlur(
                         hazeState = hazeState,
                         pageColor = chromePageColor,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .graphicsLayer { alpha = topFadeAlpha },
+                            .graphicsLayer { alpha = topFadeAlpha * topFadeBlurHide },
                     )
                 }
 
@@ -4467,6 +4485,7 @@ private fun ZenithApp(
                             AppRoute.EqualizerPresets -> stringResource(R.string.equalizer_preset)
                             AppRoute.ListenTogether -> stringResource(R.string.listen_together)
                             AppRoute.Sources -> stringResource(R.string.source)
+                            AppRoute.Charts -> "Chart"
                             else -> null
                         }
                     } else null,

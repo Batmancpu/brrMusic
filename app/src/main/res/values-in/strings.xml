@@ -76,6 +76,8 @@
     <string name="testing">Menguji…</string>
     <string name="connected">Terhubung</string>
     <string name="account_integrations">Akun &amp; integrasi</string>
+    <string name="youtube_premium_audio">Audio Premium</string>
+    <string name="youtube_premium_audio_subtitle">Kualitas audio lebih tinggi. Khusus YouTube Premium.</string>
     <string name="account_scrobbling">Akun &amp; scrobbling</string>
     <string name="rich_presence">Rich presence</string>
     <string name="scrobbling">Scrobbling</string>

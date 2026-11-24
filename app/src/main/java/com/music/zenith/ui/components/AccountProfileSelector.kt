@@ -113,6 +113,9 @@ fun AccountProfileSelector(
     val pop = remember { Animatable(if (reduceMotion) 1f else 0.3f) }
     val fade = remember { Animatable(0f) }
     val reveal = remember { Animatable(0f) }
+    // The card's own alpha on the way out: it stays solid while folding into the
+    // button and fades only in the last beat, so it never vanishes half-shrunk.
+    val cardFade = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
 
@@ -140,10 +143,11 @@ fun AccountProfileSelector(
                 if (reduceMotion) {
                     fade.animateTo(0f, tween(110))
                 } else {
-                    launch { reveal.animateTo(0f, tween(130, easing = FastOutLinearInEasing)) }
-                    launch { fade.animateTo(0f, tween(200, delayMillis = 30, easing = FastOutLinearInEasing)) }
-                    // Folds back toward the profile button in one continuous motion.
-                    pop.animateTo(0.6f, tween(220, easing = FastOutSlowInEasing))
+                    launch { reveal.animateTo(0f, tween(110, easing = FastOutLinearInEasing)) }
+                    launch { fade.animateTo(0f, tween(220, easing = FastOutLinearInEasing)) }
+                    launch { cardFade.animateTo(0f, tween(70, delayMillis = 210, easing = FastOutLinearInEasing)) }
+                    // Folds all the way down to the profile button's size in one continuous motion.
+                    pop.animateTo(0.16f, tween(280, easing = FastOutSlowInEasing))
                 }
                 after()
             }
@@ -172,7 +176,7 @@ fun AccountProfileSelector(
                     val s = if (reduceMotion) 1f else pop.value.coerceAtLeast(0f)
                     scaleX = s
                     scaleY = s
-                    alpha = fade.value.coerceIn(0f, 1f)
+                    alpha = (if (closing && !reduceMotion) cardFade.value else fade.value).coerceIn(0f, 1f)
                     // Grows out of the corner under the profile button.
                     transformOrigin = TransformOrigin(0.92f, 0f)
                     if (!reduceMotion) applyIosMenuJelly(touch, s, 0.92f, 0f)

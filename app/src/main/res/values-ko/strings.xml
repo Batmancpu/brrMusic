@@ -111,6 +111,8 @@
     <string name="testing">테스트 중…</string>
     <string name="connected">연결됨</string>
     <string name="account_integrations">계정 &amp; 연동</string>
+    <string name="youtube_premium_audio">프리미엄 오디오</string>
+    <string name="youtube_premium_audio_subtitle">더 높은 음질. YouTube Premium 전용.</string>
     <string name="spotify_connect_subtitle">로그인하여 재생목록을 불러오세요. 재생은 YouTube Music을 사용해요.</string>
     <string name="spotify_sign_in">Spotify로 로그인</string>
     <string name="spotify_use_spdc_token">sp_dc 토큰 사용</string>

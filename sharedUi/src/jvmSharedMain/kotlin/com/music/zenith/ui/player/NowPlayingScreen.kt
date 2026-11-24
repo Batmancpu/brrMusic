@@ -337,6 +337,12 @@ private const val SPOTIFY_CANVAS_RESUME_DELAY_MS = 1_000L
 /** Tinggi dek kaca Spotify Canvas sebagai bagian dari layar; sama dengan lapisan kaca hidupnya. */
 private const val SPOTIFY_DECK_HEIGHT_FRACTION = 0.56f
 
+/** Tinggi bayangan bawah (bagian dari layar) di belakang judul dan bar progres saat dek Canvas disembunyikan. */
+private const val SPOTIFY_HIDDEN_SCRIM_HEIGHT_FRACTION = 0.34f
+
+/** Kekuatan maksimum bayangan di tepi bawah layar. */
+private const val SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA = 0.72f
+
 /** Height of the seek bar that stays on screen once Spotify Canvas' control deck is hidden. */
 /** Seberapa jauh bar progres, menit, dan label kualitas dinaikkan dari tepi bawah layar. */
 private val SPOTIFY_MINI_SCRUBBER_LIFT = 16.dp
@@ -1164,6 +1170,7 @@ fun NowPlayingScreen(
     val playerHaze = remember { HazeState() }
     var showAudioPipeline by remember { mutableStateOf(false) }
     var showCast by remember { mutableStateOf(false) }
+    val qualityDetail = remember { QualityDetailState() }
     // Sheet offset lirik tetap tersusun sebentar setelah ditutup supaya animasi keluarnya sempat jalan.
     var lyricsOffsetSheetHeld by remember { mutableStateOf(lyricsOffsetOpen) }
     LaunchedEffect(lyricsOffsetOpen) {
@@ -1479,6 +1486,7 @@ fun NowPlayingScreen(
     val overlayOpen = remember {
         derivedStateOf {
             currentMenuOpen() || showAudioPipeline || showCast || showAudioOutput || showVideoQuality ||
+                qualityDetail.open ||
                 showLyricsProviders || showListenTogetherMembers || lyricsShare != null || currentLyricsOffsetOpen
         }
     }
@@ -1613,8 +1621,10 @@ fun NowPlayingScreen(
     // [QUEUE_CARRY_FRACTION] has to fall back to 0 just as surely as one that
     // carried has to finish reaching 1.
     var queueReleased by remember { mutableIntStateOf(0) }
+    var queueReleaseAlpha by remember { mutableFloatStateOf(1f) }
     LaunchedEffect(queueOpen, queueDragging, queueReleased) {
         if (queueDragging) return@LaunchedEffect
+        if (!queueOpen) queueReleaseAlpha = 1f
         val target = if (queueOpen) 1f else 0f
         val from = queueSlide.floatValue
         if (from == target) return@LaunchedEffect
@@ -1760,6 +1770,7 @@ fun NowPlayingScreen(
     // cover (videoMode). Lagu video dengan cover diam (still video covers) atau
     // tanpa dukungan video kini ikut pengaturan full-bleed seperti lagu biasa.
     val fullBleedArt = fullBleedSetting && !(videoMode && canvas == null)
+    SideEffect { CanvasFadeTuning.fullBleed.value = fullBleedArt }
     // Full-bleed is a phone idiom. What the width has to rule out is a player
     // running a foot wider than the column of controls under it — edge to edge
     // meaning "a picture, and separately some controls" rather than "the
@@ -1826,8 +1837,10 @@ fun NowPlayingScreen(
     // Frame terakhir klip saat lirik/queue dibuka. Hanya jadi sumber warna mesh
     // legacy di belakang panel; klip sendiri sudah berhenti pada frame itu.
     var canvasPanelFrame by remember(canvas?.url) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(lyricsOpen || queueOpen, canvas?.url) {
-        if (!(lyricsOpen || queueOpen)) return@LaunchedEffect
+    // Ikut queueDragging: saat antrean masih ditarik jari, panel belum "open",
+    // tapi alas blur frame beku sudah harus ada di bawah klip yang memudar.
+    LaunchedEffect(lyricsOpen || queueOpen || queueDragging, canvas?.url) {
+        if (!(lyricsOpen || queueOpen || queueDragging)) return@LaunchedEffect
         // Ambil frame terakhir klip langsung saat panel dibuka. Bila pembaca belum
         // siap, mengembalikan null, atau yang terbaca masih frame hitam (surface baru
         // dibuat ulang), coba lagi di frame berikutnya, bukan menyerah dan membiarkan
@@ -1851,8 +1864,8 @@ fun NowPlayingScreen(
     }
     // Frame beku dibuang saat player diam tanpa panel, supaya buka panel/geser
     // antrean berikutnya tidak memakai frame basi dari sesi sebelumnya.
-    LaunchedEffect(collapseAtRest, lyricsOpen, queueOpen) {
-        if (collapseAtRest && !lyricsOpen && !queueOpen) canvasPanelFrame = null
+    LaunchedEffect(collapseAtRest, lyricsOpen, queueOpen, queueDragging) {
+        if (collapseAtRest && !lyricsOpen && !queueOpen && !queueDragging) canvasPanelFrame = null
     }
     // Bentuk klip hero yang sedang tampil; diisi tiap komposisi di bawah (setelah
     // clipFadeFraction), dibaca saat skip menahan frame-nya.
@@ -2087,7 +2100,7 @@ fun NowPlayingScreen(
     } else 0f
     heroClipGeometry.portrait = clipPortrait
     heroClipGeometry.bannerHeightPx = with(density) {
-        heroHeight.toPx() + CanvasFadeTuning.offsetDp.floatValue.coerceAtLeast(0f).dp.toPx()
+        heroHeight.toPx() + CanvasFadeTuning.offset().coerceAtLeast(0f).dp.toPx()
     }
     heroClipGeometry.fade = if (clipPortrait) clipFadeFraction else HERO_FADE_FRACTION
     val statusBarTop = stableStatusBarInsets().asPaddingValues().calculateTopPadding()
@@ -2223,6 +2236,12 @@ fun NowPlayingScreen(
     // whichever layout is on screen, by [FrostedPlayerFrame] — they are
     // overlays over the player, not part of any shape of it.
     val playerOverlays: @Composable () -> Unit = {
+        if (qualityDetail.open) {
+            QualityDetailPopup(
+                state = qualityDetail,
+                hazeState = playerHaze,
+            )
+        }
         if (showVideoQuality) {
             VideoQualitySheet(
                 hazeState = playerHaze,
@@ -2678,6 +2697,7 @@ fun NowPlayingScreen(
         live = liveBackdropOn,
         // Not the host's ⋯ menu: that takes its own still, of everything.
         overlayOpen = { overlayOpen.value && !currentMenuOpen() },
+        qualityDetail = qualityDetail,
         overlays = playerOverlays,
     ) {
         if (landscape && videoMode) {
@@ -3258,7 +3278,7 @@ fun NowPlayingScreen(
                             seam = {
                                 with(density) {
                                     heroHeight.toPx() +
-                                        CanvasFadeTuning.offsetDp.floatValue.coerceAtLeast(0f).dp.toPx()
+                                        CanvasFadeTuning.offset().coerceAtLeast(0f).dp.toPx()
                                 }
                             },
                             modifier = Modifier.graphicsLayer {
@@ -3372,7 +3392,7 @@ fun NowPlayingScreen(
                                         // ke backdrop, tanpa bercampur dengan cover statis.
                                         // Live blur off: klip bertahan utuh sampai blur
                                         // frame beku-nya siap, lalu melebur ke sana.
-                                        if (spotifyFrameOnly && (lyricsOpen || queueOpen)) spotifyFrameHandoff
+                                        if (spotifyFrameOnly && (lyricsOpen || queueOpen)) minOf(spotifyFrameHandoff, queueReleaseAlpha)
                                         else 1f - smootherStep(((p() - 0.05f) / 0.55f).coerceIn(0f, 1f))
                                     } else (1f - 2f * p()).coerceIn(0f, 1f)
                                     ) * dockFade() * clipMixFade.value
@@ -3435,7 +3455,7 @@ fun NowPlayingScreen(
                                     if (growBox) {
                                         Modifier.fillMaxWidth().layout { measurable, constraints ->
                                             val full = constraints.maxHeight
-                                            val hero = (heroHeight + CanvasFadeTuning.offsetDp.floatValue.coerceAtLeast(0f).dp)
+                                            val hero = (heroHeight + CanvasFadeTuning.offset().coerceAtLeast(0f).dp)
                                                 .roundToPx().coerceIn(0, full)
                                             val h = (hero + (full - hero) * p().coerceIn(0f, 1f)).roundToInt()
                                             val placeable = measurable.measure(
@@ -3445,7 +3465,7 @@ fun NowPlayingScreen(
                                         }
                                     } else if (clipFullscreen || clipPortrait || clipFillsPanels) Modifier.fillMaxSize()
                                     else Modifier.fillMaxWidth().height(
-                                        heroHeight + CanvasFadeTuning.offsetDp.floatValue.coerceAtLeast(0f).dp,
+                                        heroHeight + CanvasFadeTuning.offset().coerceAtLeast(0f).dp,
                                     ),
                                 )
                                 .drawWithContent {
@@ -3694,7 +3714,9 @@ fun NowPlayingScreen(
                                 // blur the playing Canvas live themselves, and the
                                 // deck's glass under them would be a second live blur
                                 // of the same video for a deck nobody can see.
-                                if (reduceDynamicBlur || !renderEffectBlurSupported || overlayOpen.value) {
+                                if (reduceDynamicBlur || !renderEffectBlurSupported ||
+                                    (overlayOpen.value && !qualityDetail.open)
+                                ) {
                                     // A real backdrop RenderEffect is unavailable on
                                     // older Android versions and intentionally skipped
                                     // when dynamic blur is reduced. Retain the deck's
@@ -3761,6 +3783,44 @@ fun NowPlayingScreen(
                         Modifier.matchParentSize()
                             .graphicsLayer { alpha = spotifyCanvasDim.value * liveDeckShare() * deckDimFollow() }
                             .background(Color.Black),
+                    )
+                }
+
+                // Dek disembunyikan: judul, artis, dan bar progres melayang langsung di atas
+                // video. Gradient gelap di kaki layar menjaga teksnya terbaca tanpa menutupi
+                // videonya. Muncul saat dek menutup, hilang saat dek kembali (dim 50% di atas
+                // sudah mengambil alih), dan alpha dibaca di fase draw supaya tidak recompose.
+                val spotifyHiddenScrim = animateFloatAsState(
+                    targetValue = if (spotifyCanvasPresentation && !spotifyCanvasControlsOpen &&
+                        !lyricsOpen && !queueOpen
+                    ) {
+                        1f
+                    } else {
+                        0f
+                    },
+                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
+                    label = "spotifyHiddenScrim",
+                )
+                val spotifyHiddenScrimShowing by remember { derivedStateOf { spotifyHiddenScrim.value > 0f } }
+                if (spotifyHiddenScrimShowing) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(SPOTIFY_HIDDEN_SCRIM_HEIGHT_FRACTION)
+                            .graphicsLayer { alpha = spotifyHiddenScrim.value }
+                            .background(
+                                Brush.verticalGradient(
+                                    0.00f to Color.Transparent,
+                                    0.12f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA * 0.03f),
+                                    0.25f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA * 0.12f),
+                                    0.40f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA * 0.28f),
+                                    0.55f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA * 0.48f),
+                                    0.72f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA * 0.72f),
+                                    0.88f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA * 0.90f),
+                                    1.00f to Color.Black.copy(alpha = SPOTIFY_HIDDEN_SCRIM_MAX_ALPHA),
+                                ),
+                            ),
                     )
                 }
 
@@ -3962,6 +4022,11 @@ fun NowPlayingScreen(
                                                         if (open) queueControlsOpen = true
                                                         queueOpen = open
                                                     }
+                                                    queueReleaseAlpha = if (open) {
+                                                        1f - smootherStep(((queueSlide.floatValue - 0.05f) / 0.55f).coerceIn(0f, 1f))
+                                                    } else {
+                                                        1f
+                                                    }
                                                     queueReleased++
                                                 },
                                             )
@@ -4147,6 +4212,37 @@ fun NowPlayingScreen(
                             (if (!heroMode && !videoMode && !lyricStripEnabled && !titleSeparate) CARD_TITLE_DROP else 0.dp) +
                                 (if (videoMode) 0.dp else ControlLayoutTuning.titleExtra(hideVolumeBar, lyricStripEnabled))
                         val titleHeroDrop = if (titleSeparate) 0.dp else heroTitleDrop
+                        // Setelah tulisan "Lyrics not available" memudar, slot barisnya
+                        // kosong. Judul, artis, like, dan menu turun halus mengisi ruang
+                        // itu. Waktunya sama dengan LyricsUnavailableLine: tahan lalu
+                        // pudar, sehingga turunnya dimulai saat tulisan mulai menghilang.
+                        // Ubah lyricsGoneTitleDrop untuk mengatur jarak turunnya.
+                        val lyricsGoneTitleDrop = 22.dp
+                        var lyricsHintGone by remember { mutableStateOf(false) }
+                        val lyricsHintDisplayedEmpty = lyricsTranslation.displayedLyrics.isEmpty()
+                        LaunchedEffect(
+                            song.videoId,
+                            lyricStripEnabled,
+                            lyricsUnavailable,
+                            lyricsHintDisplayedEmpty,
+                            lyricsOpen,
+                        ) {
+                            lyricsHintGone = false
+                            if (lyricStripEnabled && lyricsUnavailable && lyricsHintDisplayedEmpty && !lyricsOpen) {
+                                delay(LYRICS_UNAVAILABLE_HOLD_MS)
+                                lyricsHintGone = true
+                            }
+                        }
+                        // Dibaca saat placement (bukan composition) lewat State, supaya
+                        // animasinya tidak merecompose seluruh pemain tiap frame.
+                        val lyricsGone = animateFloatAsState(
+                            targetValue = if (lyricsHintGone) 1f else 0f,
+                            animationSpec = tween(
+                                durationMillis = LYRICS_UNAVAILABLE_FADE_MS,
+                                easing = FastOutSlowInEasing,
+                            ),
+                            label = "lyricsGoneTitleDrop",
+                        )
                         // Functions of the collapse, called at placement and measure
                         // — see [p]. Composition never reads them.
                         fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
@@ -4156,7 +4252,12 @@ fun NowPlayingScreen(
                         // hard against the left edge with the credits beside it.
                         fun artStart(): Dp = lerp((maxWidth - fullArt) / 2, 0.dp, p())
                         fun regularTitleTop(): Dp =
-                            lerp(groupTop + slotArt + ART_TITLE_GAP + titleHeroDrop + cardTitleDrop, 0.dp, p())
+                            lerp(
+                                groupTop + slotArt + ART_TITLE_GAP + titleHeroDrop + cardTitleDrop +
+                                    lyricsGoneTitleDrop * lyricsGone.value,
+                                0.dp,
+                                p(),
+                            )
                         // Once Spotify's control deck has left, keep the only remaining
                         // player chrome against the bottom edge instead of stranding it
                         // where the artwork's title normally sits near mid-screen.
@@ -4297,7 +4398,7 @@ fun NowPlayingScreen(
                                     size = Size(
                                         playerBounds.width.toFloat(),
                                         (stillBottomPx().takeIf { it > 0f } ?: heroHeight.roundToPx().toFloat()) +
-                                            CanvasFadeTuning.offsetDp.floatValue.coerceAtLeast(0f).dp.toPx(),
+                                            CanvasFadeTuning.offset().coerceAtLeast(0f).dp.toPx(),
                                     ),
                                 )
                             }
