@@ -539,15 +539,25 @@ private fun LazyListScope.chartsPageItems(
                 onAction = onRetry,
             )
         }
-        is UiState.Success -> state.data.forEachIndexed { shelfIndex, shelf ->
+        is UiState.Success -> state.data
+            .withIndex()
+            .sortedBy { (_, shelf) ->
+                when {
+                    isChartArtistShelf(shelf) -> 2
+                    isChartTrackShelf(shelf) -> 1
+                    else -> 0
+                }
+            }
+            .forEach { (shelfIndex, shelf) ->
             val shelfKey = "charts:$shelfIndex:${shelf.title}"
             val artists = isChartArtistShelf(shelf)
+            val rows = if (artists) shelf.items.take(4) else shelf.items
             if (artists || isChartTrackShelf(shelf)) {
                 item(key = "$shelfKey:header") {
                     SectionHeader(shelf.title, shelf.subtitle)
                 }
                 itemsIndexed(
-                    shelf.items,
+                    rows,
                     key = { index, item -> "$shelfKey:${item.browseId ?: item.videoId}:$index" },
                     contentType = { _, _ -> "chart-rank-row" },
                 ) { index, item ->
@@ -559,7 +569,7 @@ private fun LazyListScope.chartsPageItems(
                         round = artists,
                         isCurrent = current,
                         isPlaying = current && isPlaying,
-                        showDivider = index < shelf.items.lastIndex,
+                        showDivider = index < rows.lastIndex,
                         onClick = { onShelfItemClick(item, shelf.title) },
                         onLongPress = onShelfItemLongPress?.let { { it(item) } },
                     )
