@@ -139,7 +139,7 @@ fun AccountProfileSelector(
 
     // pop: the card's scale, which may overshoot — that is the bounce.
     // fade: its alpha and the scrim's. reveal: the avatars' own, a beat behind.
-    val pop = remember { Animatable(if (reduceMotion) 1f else 0.3f) }
+    val pop = remember { Animatable(if (reduceMotion) 1f else 0.12f) }
     val fade = remember { Animatable(0f) }
     val reveal = remember { Animatable(0f) }
     // The card's own alpha on the way out: it stays solid while folding into the
@@ -180,7 +180,7 @@ fun AccountProfileSelector(
                     launch { fade.animateTo(0f, tween(220, easing = FastOutLinearInEasing)) }
                     launch { cardFade.animateTo(0f, tween(70, delayMillis = 210, easing = FastOutLinearInEasing)) }
                     // Folds all the way down to the profile button's size in one continuous motion.
-                    pop.animateTo(0.16f, tween(280, easing = FastOutSlowInEasing))
+                    pop.animateTo(0.12f, tween(280, easing = FastOutSlowInEasing))
                 }
                 after()
             }
@@ -216,7 +216,10 @@ fun AccountProfileSelector(
                     val s = if (reduceMotion) 1f else pop.value.coerceAtLeast(0f)
                     scaleX = s
                     scaleY = s
-                    alpha = (if (closing && !reduceMotion) cardFade.value else fade.value).coerceIn(0f, 1f)
+                    // Held back until the card is measured, so its pivot is the tapped
+                    // button from the first frame instead of jumping into place.
+                    val measured = if (cardSize.width > 0f) 1f else 0f
+                    alpha = (if (closing && !reduceMotion) cardFade.value else fade.value).coerceIn(0f, 1f) * measured
                     // Grows out of, and folds back into, the profile button itself.
                     val ox = if (anchor != null && cardSize.width > 0f) {
                         (anchor.x - cardOrigin.x) / cardSize.width

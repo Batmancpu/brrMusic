@@ -317,13 +317,7 @@ fun AccountAndScrobblingScreen(
                     title = stringResource(R.string.edit_profile),
                     onClick = { editingProfile = true },
                 )
-                FullWidthDivider()
-                SettingsRow(
-                    icon = SfIcons.SwitchAccount,
-                    title = stringResource(R.string.listen_as),
-                    subtitle = channelName ?: stringResource(R.string.default_youtube_profile),
-                    onClick = onSwitchChannel,
-                )
+
                 // With the account because it is a claim about the account: only a
                 // signed-in Premium session is offered the higher Opus rung.
                 FullWidthDivider()

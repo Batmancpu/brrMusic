@@ -730,7 +730,6 @@ fun TopBarAccountButton(
     // content to a 40dp circle, which would cut the photo short of the glass edge.
     Box(
         modifier = modifier
-            .onGloballyPositioned { buttonCoords[0] = it }
             .graphicsLayer {
                 translationY = translation.value
                 alpha = visibility.value
@@ -738,6 +737,9 @@ fun TopBarAccountButton(
                 scaleX = touchScale
                 scaleY = touchScale
             }
+            // After the layer, so the position it reports includes the bar's own
+            // shift and scale: the popup then grows from where the button is drawn.
+            .onGloballyPositioned { buttonCoords[0] = it }
             .pointerInput(onSwipeProfile) {
                 if (onSwipeProfile == null) return@pointerInput
                 var drag = 0f

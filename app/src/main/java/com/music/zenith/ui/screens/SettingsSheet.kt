@@ -2657,7 +2657,7 @@ internal fun AccountCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (!signedIn) {
+        if (!signedIn || onClick != null) {
             Spacer(Modifier.width(8.dp))
             Chevron()
         }
