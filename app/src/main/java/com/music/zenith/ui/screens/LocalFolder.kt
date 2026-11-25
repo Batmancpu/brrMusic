@@ -87,6 +87,7 @@ import com.music.zenith.ui.components.PAGE_GUTTER
 import com.music.zenith.ui.components.ROW_DIVIDER_INSET
 import com.music.zenith.ui.components.SearchPlayingBars
 import com.music.zenith.ui.components.SongRow
+import com.music.zenith.ui.components.isLosslessQuality
 import com.music.zenith.ui.components.longPressMenuClickable
 import com.music.zenith.ui.components.rememberRemoteArtworkUrl
 import com.music.zenith.ui.components.thumbnailBorder
@@ -181,6 +182,9 @@ enum class LocalFolderTab {
 @Stable
 class LocalFolderState {
     var tab by mutableStateOf(LocalFolderTab.SONGS)
+
+    /** Filter kualitas di tab Songs: hanya lagu Lossless dan Hi-Res. */
+    var losslessOnly by mutableStateOf(false)
 
     var selectedIds by mutableStateOf<Set<String>>(emptySet())
         private set
@@ -293,6 +297,23 @@ internal fun LazyListScope.localFolderItems(
         }
     }
 
+    // Chip filter kualitas: hanya di tab Songs, dan hanya kalau folder ini punya lagu
+    // Lossless (atau filternya sedang menyala, supaya selalu bisa dimatikan).
+    val hasLossless = songs.any { it.isLosslessQuality() }
+    if (state.tab == LocalFolderTab.SONGS && (hasLossless || state.losslessOnly)) {
+        item(key = "folder-quality-filter") {
+            QualityFilterChip(
+                selected = state.losslessOnly,
+                palette = palette,
+                onClick = { state.losslessOnly = !state.losslessOnly },
+                modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 10.dp),
+            )
+        }
+    }
+    // Yang diputar saat baris diketuk adalah daftar yang sedang tampil, jadi filter
+    // diterapkan sebelum daftar dipakai di bawah.
+    @Suppress("NAME_SHADOWING")
+    val songs = if (state.losslessOnly) songs.filter { it.isLosslessQuality() } else songs
     val grid = folder.viewType == LibraryViewType.GRID
     val empty = when (state.tab) {
         LocalFolderTab.SONGS -> songs.isEmpty()
@@ -359,6 +380,7 @@ internal fun LazyListScope.localFolderItems(
                     rowBackground = Color.Transparent,
                     // Every row here is on the device already.
                     downloadedTint = null,
+                    showSourceQuality = true,
                     onClick = { songClick(index) },
                     onLongPress = { songHold(song) },
                     onMore = { onSongLongPress(song) },
@@ -405,6 +427,27 @@ internal fun LazyListScope.localFolderItems(
                 FolderDivider(palette)
             }
         }
+    }
+}
+
+@Composable
+private fun QualityFilterChip(
+    selected: Boolean,
+    palette: ArtworkPalette,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier) {
+        Text(
+            text = "Lossless",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) palette.onBackground else palette.onBackgroundVariant,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(if (selected) palette.accent.copy(alpha = 0.28f) else palette.elevated)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+        )
     }
 }
 

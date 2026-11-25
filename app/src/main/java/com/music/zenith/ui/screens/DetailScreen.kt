@@ -205,6 +205,7 @@ import com.music.zenith.ui.components.libraryGrid
 import com.music.zenith.ui.components.lightweightLiquidGlass
 import com.music.zenith.ui.components.thumbnailBorder
 import com.music.zenith.ui.components.detailSkeleton
+import com.music.zenith.ui.components.isLosslessQuality
 import com.music.zenith.ui.components.topBarContentPadding
 import com.music.zenith.ui.components.trackColumnWidth
 import com.music.zenith.ui.haptics.Haptic
@@ -1075,7 +1076,19 @@ private fun ReleaseHeader(
     val isCatalogAlbum = page.type == BrowseType.ALBUM && !page.browseId.startsWith("local:")
     // Kualitas dipisah dari teks meta supaya bisa diberi icon sendiri.
     val albumQualityShown = albumQuality.takeIf { isCatalogAlbum }
-    val meta = if (isCatalogAlbum) page.albumMeta(albumGenre) else listMeta
+    // Folder perangkat (Downloads, Cache, Lokal): jumlah lagu Lossless / Hi-Res
+    // ikut di baris meta, seperti baris kualitas di header album.
+    val losslessCount = remember(songs, page.browseId) {
+        if (page.browseId.startsWith("local:") || page.browseId == CACHE_FOLDER_BROWSE_ID) {
+            songs.count { it.isLosslessQuality() }
+        } else {
+            0
+        }
+    }
+    val meta = listOf(
+        if (isCatalogAlbum) page.albumMeta(albumGenre) else listMeta,
+        if (losslessCount > 0) "$losslessCount Lossless" else "",
+    ).filter { it.isNotBlank() }.joinToString(" · ")
     // Liked Music dan Most Played tidak memakai sleeve berbingkai: seninya full-bleed.
     val albumHero = page.isAlbumHero()
     val mixHero = page.isMixHero()
