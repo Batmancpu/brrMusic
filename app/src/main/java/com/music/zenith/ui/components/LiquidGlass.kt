@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -249,19 +250,18 @@ fun Modifier.liquidGlass(
         clarity.lensScale * custom.refraction * (1f + (edgeBoost - 1f) * 0.5f)
     val rainbowStrength = custom.rainbowStrength(clarity.chromatic)
     val highlightSpec = remember(custom.rim, edgeBoost) {
-        // Rim lebih tebal supaya cahaya tepi terbaca jelas, bukan hairline tipis.
-        val rimWidth = 1.1.dp * (1f + (edgeBoost - 1f) * 0.6f)
+        val rimWidth = 0.6.dp * (1f + (edgeBoost - 1f) * 0.4f)
         Highlight.Default.copy(width = rimWidth, blurRadius = rimWidth / 2f, alpha = custom.rim)
     }
     val isLightTheme = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-    // Cahaya di sisi dalam tepi, memberi kesan ketebalan kaca. Selalu aktif,
-    // edgeDepth hanya memperkuatnya.
+    // Cahaya dalam yang terarah: hanya menyala di sisi kiri atas (offset positif),
+    // bukan cincin rata di seluruh tepi.
     val innerGlow = remember(edgeBoost, isLightTheme) {
-        val glowAlpha = ((if (isLightTheme) 0.38f else 0.22f) * (0.85f + 0.15f * edgeBoost))
+        val glowAlpha = ((if (isLightTheme) 0.30f else 0.16f) * (0.85f + 0.15f * edgeBoost))
             .coerceIn(0f, 1f)
         InnerShadow(
-            radius = (6f + 2f * (edgeBoost - 1f)).dp,
-            offset = DpOffset(0.dp, 0.dp),
+            radius = 5.dp,
+            offset = DpOffset(2.dp, 2.dp),
             color = Color.White.copy(alpha = glowAlpha),
         )
     }
@@ -270,44 +270,36 @@ fun Modifier.liquidGlass(
         val base = if (isLightTheme) 0.18f else 0.1f
         Shadow.Default.copy(color = Color.Black.copy(alpha = (base * custom.shadow).coerceIn(0f, 1f)))
     }
+    // Gelap: tint diambil dari warna surface tema yang diangkat sedikit ke putih,
+    // jadi kaca selaras dengan hue halaman (biru tetap biru) dan tidak lebih gelap dari latar.
     val themeTint = if (isLightTheme) {
         Color(0xFFF2F2F7)
     } else {
-        Color(0xFF121212)
+        lerp(MaterialTheme.colorScheme.surface, Color.White, 0.16f)
     }
     val tintAlpha = (clarity.tintAlpha * custom.tint).coerceIn(0f, 1f)
     // White glass over a white page is invisible, so light theme keeps a minimum fill.
     val surfaceTintColor = surfaceTint
-        ?: themeTint.copy(alpha = if (isLightTheme) maxOf(tintAlpha, 0.6f) else tintAlpha)
-    // Tepi spekular ala Apple Music: terang di sudut kiri atas dan kanan bawah,
-    // redup di tengah, sehingga kaca terlihat punya ketebalan.
+        ?: themeTint.copy(
+            alpha = if (isLightTheme) maxOf(tintAlpha, 0.6f) else (tintAlpha + 0.10f).coerceIn(0f, 1f),
+        )
+    // Tepi spekular ala Apple Music: hanya busur terang di kiri atas dan kanan bawah,
+    // bagian tengah tepi dibiarkan bening (alpha 0), bukan cincin penuh.
     val rimBrush = remember(isLightTheme) {
-        if (isLightTheme) {
-            Brush.linearGradient(
-                listOf(
-                    Color.White.copy(alpha = 0.95f),
-                    Color.Black.copy(alpha = 0.08f),
-                    Color.Black.copy(alpha = 0.08f),
-                    Color.White.copy(alpha = 0.80f),
-                ),
-            )
-        } else {
-            Brush.linearGradient(
-                listOf(
-                    Color.White.copy(alpha = 0.50f),
-                    Color.White.copy(alpha = 0.06f),
-                    Color.White.copy(alpha = 0.06f),
-                    Color.White.copy(alpha = 0.32f),
-                ),
-            )
-        }
+        val peak = if (isLightTheme) 0.9f else 0.55f
+        Brush.linearGradient(
+            0.00f to Color.White.copy(alpha = peak),
+            0.20f to Color.White.copy(alpha = 0f),
+            0.80f to Color.White.copy(alpha = 0f),
+            1.00f to Color.White.copy(alpha = peak * 0.7f),
+        )
     }
-    // Kilap tipis dari atas ke bawah agar permukaan terangkat dari latar, tidak menyatu.
+    // Kilap sangat tipis dari atas agar permukaan tidak datar.
     val sheenBrush = remember(isLightTheme) {
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = if (isLightTheme) 0.22f else 0.10f),
-                Color.White.copy(alpha = if (isLightTheme) 0.04f else 0.02f),
+                Color.White.copy(alpha = if (isLightTheme) 0.16f else 0.07f),
+                Color.White.copy(alpha = 0f),
             ),
         )
     }
@@ -338,5 +330,5 @@ fun Modifier.liquidGlass(
         },
         exportedBackdrop = exportedBackdrop,
         backdropScale = resolution,
-    ).border(0.8.dp, rimBrush, shape)
+    ).border(0.6.dp, rimBrush, shape)
 }
