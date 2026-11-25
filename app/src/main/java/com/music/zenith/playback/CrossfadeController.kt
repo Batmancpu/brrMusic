@@ -1253,6 +1253,17 @@ class CrossfadeController(
             // the window then falls back to the file end, past the loop start.
             plannedTransition = currentItem.mediaId to (loop.out.loopStart * 1000).roundToLong()
         }
+        // The loop's marker is shown as soon as the loop is planned, so it
+        // does not wait on the next track's bytes and does not move once they land.
+        var loopMarked = false
+        if (loop != null && !nextStreamReady(nextItem)) {
+            val pendingLoopStartMs = (loop.out.loopStart * 1000).roundToLong()
+            AppSettings.smartTransitionWindow.value = TransitionWindow(
+                start = (pendingLoopStartMs.toFloat() / duration).coerceIn(0f, 1f),
+                end = 1f,
+            )
+            loopMarked = true
+        }
         if (loop != null && nextStreamReady(nextItem)) {
             val loopStartMs = (loop.out.loopStart * 1000).roundToLong()
             AppSettings.smartTransitionWindow.value = TransitionWindow(
@@ -1298,9 +1309,7 @@ class CrossfadeController(
             plan.markerVisible &&
             duration > 0L &&
             analysisState.current == TrackAnalysisState.ANALYSED &&
-            analysisState.next in MEASURED_ENOUGH_TO_ENTER_ON &&
-            // Last, because it is the only one that can read the cache.
-            nextStreamReady(nextItem)
+            analysisState.next in MEASURED_ENOUGH_TO_ENTER_ON
         val markerVerdict = when {
             markable -> "shown"
             plan.blocked -> "hidden: plan blocked (${plan.reason})"
@@ -1318,13 +1327,15 @@ class CrossfadeController(
                     "${nextItem.mediaId} \"${nextItem.mediaMetadata.title}\": $markerVerdict",
             )
         }
-        AppSettings.smartTransitionWindow.value = if (markable) {
-            TransitionWindow(
-                start = (plan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
-                end = (plan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
-            )
-        } else {
-            null
+        if (!loopMarked) {
+            AppSettings.smartTransitionWindow.value = if (markable) {
+                TransitionWindow(
+                    start = (plan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+                    end = (plan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+                )
+            } else {
+                null
+            }
         }
 
         if (plan.blocked || markerOnly) return
