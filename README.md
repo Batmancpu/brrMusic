@@ -45,8 +45,8 @@
   </tr>
   <tr>
     <td align="center" width="33%"><img src=".github/assets/screenshots/screenshot-4.jpg" alt="Liked Music" width="100%" /><br/><sub><b>Liked Music</b></sub></td>
-    <td align="center" width="33%"><img src=".github/assets/screenshots/screenshot-5.jpg" alt="Player" width="100%" /><br/><sub><b>Player</b></sub></td>
-    <td align="center" width="33%"></td>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/18.jpg" alt="Player" width="100%" /><br/><sub><b>Player</b></sub></td>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/17.jpg" alt="Album" width="100%" /><br/><sub><b>Album</b></sub></td>
   </tr>
 </table>
 </div>
