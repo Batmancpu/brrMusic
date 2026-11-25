@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
@@ -248,21 +249,21 @@ fun Modifier.liquidGlass(
         clarity.lensScale * custom.refraction * (1f + (edgeBoost - 1f) * 0.5f)
     val rainbowStrength = custom.rainbowStrength(clarity.chromatic)
     val highlightSpec = remember(custom.rim, edgeBoost) {
-        val rimWidth = Highlight.Default.width * (1f + (edgeBoost - 1f) * 0.6f)
+        // Rim lebih tebal supaya cahaya tepi terbaca jelas, bukan hairline tipis.
+        val rimWidth = 1.1.dp * (1f + (edgeBoost - 1f) * 0.6f)
         Highlight.Default.copy(width = rimWidth, blurRadius = rimWidth / 2f, alpha = custom.rim)
     }
     val isLightTheme = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-    // Cahaya tipis di sisi dalam tepi, memberi kesan ketebalan kaca di bar dan player.
+    // Cahaya di sisi dalam tepi, memberi kesan ketebalan kaca. Selalu aktif,
+    // edgeDepth hanya memperkuatnya.
     val innerGlow = remember(edgeBoost, isLightTheme) {
-        if (edgeBoost > 1f) {
-            InnerShadow(
-                radius = 8.dp,
-                offset = DpOffset(0.dp, 0.dp),
-                color = Color.White.copy(alpha = if (isLightTheme) 0.30f else 0.12f),
-            )
-        } else {
-            null
-        }
+        val glowAlpha = ((if (isLightTheme) 0.38f else 0.22f) * (0.85f + 0.15f * edgeBoost))
+            .coerceIn(0f, 1f)
+        InnerShadow(
+            radius = (6f + 2f * (edgeBoost - 1f)).dp,
+            offset = DpOffset(0.dp, 0.dp),
+            color = Color.White.copy(alpha = glowAlpha),
+        )
     }
     val shadowSpec = remember(custom.shadow, isLightTheme) {
         // A light page has nothing darker behind the bar, so the shadow sets it apart.
@@ -278,11 +279,37 @@ fun Modifier.liquidGlass(
     // White glass over a white page is invisible, so light theme keeps a minimum fill.
     val surfaceTintColor = surfaceTint
         ?: themeTint.copy(alpha = if (isLightTheme) maxOf(tintAlpha, 0.6f) else tintAlpha)
-    // White 10% vanishes against a light page; use a dark hairline there.
-    val edgeColor = if (isLightTheme) {
-        Color.Black.copy(alpha = 0.12f)
-    } else {
-        GLASS_EDGE_COLOR
+    // Tepi spekular ala Apple Music: terang di sudut kiri atas dan kanan bawah,
+    // redup di tengah, sehingga kaca terlihat punya ketebalan.
+    val rimBrush = remember(isLightTheme) {
+        if (isLightTheme) {
+            Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.95f),
+                    Color.Black.copy(alpha = 0.08f),
+                    Color.Black.copy(alpha = 0.08f),
+                    Color.White.copy(alpha = 0.80f),
+                ),
+            )
+        } else {
+            Brush.linearGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.50f),
+                    Color.White.copy(alpha = 0.06f),
+                    Color.White.copy(alpha = 0.06f),
+                    Color.White.copy(alpha = 0.32f),
+                ),
+            )
+        }
+    }
+    // Kilap tipis dari atas ke bawah agar permukaan terangkat dari latar, tidak menyatu.
+    val sheenBrush = remember(isLightTheme) {
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = if (isLightTheme) 0.22f else 0.10f),
+                Color.White.copy(alpha = if (isLightTheme) 0.04f else 0.02f),
+            ),
+        )
     }
 
     return drawBackdrop(
@@ -307,8 +334,9 @@ fun Modifier.liquidGlass(
         innerShadow = innerGlow?.let { glow -> { glow } },
         onDrawSurface = {
             drawRect(color = surfaceTintColor, size = size)
+            drawRect(brush = sheenBrush, size = size)
         },
         exportedBackdrop = exportedBackdrop,
         backdropScale = resolution,
-    ).border(GLASS_EDGE_WIDTH, edgeColor, shape)
+    ).border(0.8.dp, rimBrush, shape)
 }

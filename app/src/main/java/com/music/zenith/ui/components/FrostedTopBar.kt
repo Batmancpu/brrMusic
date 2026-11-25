@@ -646,7 +646,11 @@ private fun artworkPageSurface(
         .clip(shape)
         .then(
             when {
-                useLiquidGlass -> Modifier.liquidGlass(shape, refract = refract)
+                useLiquidGlass -> Modifier.liquidGlass(
+                    shape,
+                    refract = refract,
+                    edgeDepth = com.music.zenith.data.settings.GlassBarMetrics.layout.edgeDepth,
+                )
                 reduceDynamicBlur || hazeState == null -> Modifier.background(container)
                 else -> Modifier.optimizedHazeEffect(
                     state = hazeState,
