@@ -1574,6 +1574,16 @@ class PlaybackService : MediaLibraryService() {
                     .setHttpRequestHeaders(serving.headers)
                     .build()
             }
+            // The entry already holds JioSaavn's own bytes, from a play nothing
+            // in this process remembers (a restart, or an expired
+            // [StreamChoice]). Finished by the same URL, never by a new race.
+            AudioCache.keptJioSaavnUrl(dataSpec.key ?: AudioCache.cacheKeyOf(dataSpec.uri))?.let { kept ->
+                NerdStats.recordSource(videoId, "JioSaavn")
+                StreamChoice.remember(videoId, SourceStream(kept), substituted = true)
+                return@Resolver dataSpec.buildUpon()
+                    .setUri(Uri.parse(kept))
+                    .build()
+            }
             // A track queued from YouTube may be held by a source the user
             // ranked above it — see [SourceResolver.substituteForYouTube] and
             // [raceYouTubeOrModule]. Only worth the extra lookup when
