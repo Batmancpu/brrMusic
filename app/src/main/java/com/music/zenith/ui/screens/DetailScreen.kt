@@ -475,13 +475,24 @@ fun DetailScreen(
             if (signature != null) return@LaunchedEffect
         }
     }
+    // Liked Music: warna halaman diambil dari tint cover hero (cache yang sama dengan
+    // LikedFluidBackground), bukan dari thumbnail halaman yang baru ada setelah daftar
+    // lagu datang. Jadi halaman tidak mulai hitam lalu loncat ke warna lain.
+    val isLikedPage = page.isLikedMusic()
+    val likedCovers = if (isLikedPage) rememberLikedCovers(page.browseId, songs) else emptyList()
+    val likedTint = if (isLikedPage) rememberMostPlayedTint(likedCovers, LIKED_COLORS) else null
     val palette = rememberArtworkPalette(
         // Folder perangkat (Local, Downloads, Cached) tidak punya sampul sendiri:
         // warnanya diambil dari cover lagu pertama, sama dengan hero, supaya
         // halamannya menyatu seperti halaman artis.
-        imageUrl = appleArt?.heroUrl ?: page.thumbnailUrl
-            ?: if (page.isFolderCover()) songs.firstOrNull { it.thumbnailUrl != null }?.thumbnailUrl else null,
-        keyColors = appleArt?.keyColors() ?: page.mix?.let { mixKeyColors(it) },
+        imageUrl = if (isLikedPage) {
+            null
+        } else {
+            appleArt?.heroUrl ?: page.thumbnailUrl
+                ?: if (page.isFolderCover()) songs.firstOrNull { it.thumbnailUrl != null }?.thumbnailUrl else null
+        },
+        keyColors = appleArt?.keyColors() ?: page.mix?.let { mixKeyColors(it) }
+            ?: likedTint?.let { com.music.zenith.ui.theme.ArtworkKeyColors(background = it[1], accent = it[2]) },
     )
 
     // Narrowing the running order in place — the release equivalent of the
