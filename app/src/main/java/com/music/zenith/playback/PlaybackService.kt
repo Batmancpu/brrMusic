@@ -6091,6 +6091,12 @@ class PlaybackService : MediaLibraryService() {
                 Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
             dsd == null && isRawPcm && pcmDataRate != null ->
                 Pair(pcmDataRate, TelemetryProvenance.DERIVED)
+            // A lossless track with no declared format was replayed from cache.
+            // The figure YouTube's resolver picked for the same id (Automix's
+            // analysis read fills it) describes a different, lossy stream.
+            isLossless && NerdStats.declaredFormat(mediaId) == null ->
+                measuredStreamKbps(player)?.let { Pair(it, TelemetryProvenance.MEASURED) }
+                    ?: Pair(null, TelemetryProvenance.UNKNOWN)
             else ->
                 NerdStats.sourceBitrate(mediaId) { measuredStreamKbps(player) }
                     ?: Pair(null, TelemetryProvenance.UNKNOWN)
