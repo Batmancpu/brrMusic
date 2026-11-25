@@ -6664,7 +6664,12 @@ class PlaybackService : MediaLibraryService() {
         val boundary = crossfade?.plannedTransitionFor(current.mediaId) ?: duration
         val speed = exoPlayer.playbackParameters.speed.coerceAtLeast(MIN_WINDOW_SPEED)
         val remaining = ((boundary - exoPlayer.currentPosition) / speed).toLong()
-        if (remaining > DirectSourceGate.WINDOW_MS) return
+        val window = if (AppSettings.smartFadeEnabled.value) {
+            DirectSourceGate.AUTOMIX_WINDOW_MS
+        } else {
+            DirectSourceGate.WINDOW_MS
+        }
+        if (remaining > window) return
         if (!DirectSourceGate.openNext(next.mediaId)) return
         TrackLog.d(
             "Zenith",

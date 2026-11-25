@@ -1246,6 +1246,13 @@ class CrossfadeController(
         val loop = loopPlanFor(
             player, currentItem, nextItem, currentAnalysis, nextAnalysis, duration, nextDuration, analysisState,
         )
+        if (loop != null && !markerOnly && !nextStreamReady(nextItem)) {
+            // The next track's bytes are only fetched once DirectSourceGate's
+            // window opens, and that window is measured from plannedTransition.
+            // Leaving it unset until the stream is ready deadlocks the two:
+            // the window then falls back to the file end, past the loop start.
+            plannedTransition = currentItem.mediaId to (loop.out.loopStart * 1000).roundToLong()
+        }
         if (loop != null && nextStreamReady(nextItem)) {
             val loopStartMs = (loop.out.loopStart * 1000).roundToLong()
             AppSettings.smartTransitionWindow.value = TransitionWindow(
@@ -1326,7 +1333,10 @@ class CrossfadeController(
         if (fade <= 0L) return
 
         val transitionStartMs = (plan.transitionStart * 1000).roundToLong()
-        plannedTransition = currentItem.mediaId to transitionStartMs
+        // Keep an earlier loop start planned this tick, so the gate window
+        // opens for whichever mix comes first.
+        val earlierPlannedMs = plannedTransition?.takeIf { it.first == currentItem.mediaId }?.second
+        plannedTransition = currentItem.mediaId to minOf(transitionStartMs, earlierPlannedMs ?: transitionStartMs)
         val remaining = transitionStartMs - player.currentPosition
         if (remaining <= MIX_PREFETCH_MS && currentAnalysis.isUsable && nextAnalysis.isUsable) {
             prefetchMixWaves(
