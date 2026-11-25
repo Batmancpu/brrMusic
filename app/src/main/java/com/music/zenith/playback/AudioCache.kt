@@ -170,6 +170,7 @@ object AudioCache {
 
     /** Enough to cover a hand-over, not enough to keep chasing a lost race. */
     private const val MAX_ATTEMPTS = 4
+    private const val FILL_ATTEMPTS = 40
 
     /**
      * How many tracks past the immediate next one get their stream URL warmed
@@ -1719,6 +1720,28 @@ object AudioCache {
     suspend fun warmRange(uri: Uri, position: Long, length: Long) {
         val key = keyFactory.buildCacheKey(DataSpec(uri))
         fetch(key, uri, position, length)
+    }
+
+    suspend fun fillWhole(uri: Uri) {
+        if (!::cache.isInitialized || upstreamFactory == null) return
+        val key = keyFactory.buildCacheKey(DataSpec(uri))
+        repeat(FILL_ATTEMPTS) {
+            val total = runCatching { ContentMetadata.getContentLength(cache.getContentMetadata(key)) }
+                .getOrDefault(C.LENGTH_UNSET.toLong())
+            if (total > 0) {
+                var position = 0L
+                while (position < total) {
+                    val length = minOf(CHUNK_BYTES, total - position)
+                    if (cache.getCachedBytes(key, position, length) < length) {
+                        fetch(key, uri, position, length)
+                        if (cache.getCachedBytes(key, position, length) < length) break
+                    }
+                    position += length
+                }
+                if (position >= total) return
+            }
+            delay(RETRY_DELAY_MS)
+        }
     }
 
     /**
