@@ -164,6 +164,7 @@ import com.music.zenith.data.settings.AppSettings
 import com.music.zenith.data.settings.OutputPcmMode
 import com.music.zenith.data.settings.GlassClarity
 import com.music.zenith.data.settings.GlassPreset
+import com.music.zenith.data.settings.GlassUserPreset
 import com.music.zenith.data.settings.GlassBarMetrics
 import com.music.zenith.data.settings.BitPerfectMode
 import com.music.zenith.playback.AudioOutputStatus
@@ -3332,6 +3333,9 @@ private fun LiquidGlassSettingsContent() {
     val active = liquidGlass && supported
     val lensActive = active && !frosted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val bar = GlassBarMetrics.layout
+    val userPresets by AppSettings.glassUserPresets.collectAsStateWithLifecycle()
+    var showSavePresetDialog by remember { mutableStateOf(false) }
+    var presetToDelete by remember { mutableStateOf<GlassUserPreset?>(null) }
     fun step(v: Float) = (v * 2f).roundToInt() / 2f
     fun sizeText(v: Float, unit: String): String {
         val r = (v * 10f).roundToInt() / 10f
@@ -3432,6 +3436,47 @@ private fun LiquidGlassSettingsContent() {
                 onClick = { AppSettings.applyGlassPreset(preset) },
             )
         }
+    }
+
+    SettingsGroup(
+        header = stringResource(R.string.glass_section_my_presets),
+        footer = stringResource(R.string.glass_footer_my_presets),
+    ) {
+        userPresets.forEach { preset ->
+            val selected = preset.matches(clarity.level, frosted, custom, indicator, bar)
+            SettingsRow(
+                title = preset.name,
+                enabled = active,
+                trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (selected) {
+                            Text(
+                                text = "\u2713",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.size(12.dp))
+                        }
+                        Icon(
+                            imageVector = SfIcons.Trash,
+                            contentDescription = stringResource(R.string.delete),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clickable { presetToDelete = preset },
+                        )
+                    }
+                },
+                onClick = { AppSettings.applyGlassUserPreset(preset) },
+            )
+            RowDivider()
+        }
+        SettingsRow(
+            icon = SfIcons.Add,
+            title = stringResource(R.string.glass_preset_save_current),
+            enabled = active && userPresets.size < AppSettings.GLASS_USER_PRESETS_MAX,
+            onClick = { showSavePresetDialog = true },
+        )
     }
 
     SettingsGroup(header = stringResource(R.string.glass_section_color)) {
@@ -3922,6 +3967,54 @@ private fun LiquidGlassSettingsContent() {
             onClick = { AppSettings.applyGlassPreset(GlassPreset.DEFAULT) },
         )
     }
+    if (showSavePresetDialog) {
+        var nameInput by remember { mutableStateOf("") }
+        MacOSAlertDialog(
+            onDismissRequest = { showSavePresetDialog = false },
+            title = { Text(stringResource(R.string.glass_preset_save_current)) },
+            text = {
+                OutlinedTextField(
+                    value = nameInput,
+                    onValueChange = { nameInput = it.take(AppSettings.GLASS_USER_PRESET_NAME_MAX) },
+                    label = { Text(stringResource(R.string.glass_preset_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = nameInput.isNotBlank(),
+                    onClick = {
+                        AppSettings.saveGlassUserPreset(nameInput)
+                        showSavePresetDialog = false
+                    },
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSavePresetDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    presetToDelete?.let { preset ->
+        IosConfirmDialog(
+            title = stringResource(R.string.glass_preset_delete_title),
+            message = preset.name,
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
+            destructive = true,
+            onDismiss = { presetToDelete = null },
+            onConfirm = {
+                AppSettings.deleteGlassUserPreset(preset.id)
+                presetToDelete = null
+            },
+        )
+    }
+
     Spacer(Modifier.height(24.dp))
 }
 
