@@ -2084,6 +2084,8 @@ fun SettingsScreen(
             }
         }
 
+        if (section == SettingsCategory.ABOUT) AboutContent(version = version)
+
         // Read after every group above has had its turn at the query, which is
         // what makes this an accurate "nothing here" rather than a guess.
         if (searching && !search.anyMatch) {
@@ -3301,6 +3303,7 @@ enum class SettingsCategory(@param:StringRes val title: Int) {
     YOUR_DATA(R.string.your_data),
     LANGUAGE(R.string.language),
     ADVANCED(R.string.advanced_options),
+    ABOUT(R.string.about_app),
     ;
 
     val icon: ImageVector
@@ -3316,6 +3319,7 @@ enum class SettingsCategory(@param:StringRes val title: Int) {
             YOUR_DATA -> SfIcons.YourData
             LANGUAGE -> SfIcons.Language
             ADVANCED -> SfIcons.Advanced
+            ABOUT -> SfIcons.Info
         }
 }
 
