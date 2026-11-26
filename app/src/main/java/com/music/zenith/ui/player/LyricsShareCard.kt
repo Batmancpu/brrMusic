@@ -350,7 +350,7 @@ internal class LyricsCardPainter internal constructor(
         val rowEnd = rowStart + text.length
         fun run(from: Int, to: Int, dy: Float) {
             if (to <= from) return
-            canvas.drawText(text, from, to, placed.x + paint.measureText(text, 0, from), placed.baseline + dy, paint)
+            canvas.drawRunOf(text, from, to, placed.x + advanceAt(paint, text, from), placed.baseline + dy, paint)
         }
         var cursor = 0
         timing.wordSpans.forEachIndexed { index, span ->
@@ -363,8 +363,8 @@ internal class LyricsCardPainter internal constructor(
                 for (k in from until to) {
                     val letter = rowStart + k - span.first
                     grow.sampleInto(letter, positionMs, growth)
-                    val left = placed.x + paint.measureText(text, 0, k)
-                    val w = paint.measureText(text, k, k + 1)
+                    val left = placed.x + advanceAt(paint, text, k)
+                    val w = advanceAt(paint, text, k + 1) - advanceAt(paint, text, k)
                     val cx = left + w / 2f + growth.shift * size
                     val y = placed.baseline - growth.rise * rise
                     canvas.save()
@@ -373,9 +373,9 @@ internal class LyricsCardPainter internal constructor(
                         glow.set(paint)
                         glow.alpha = (paint.alpha * growth.bloom.coerceAtMost(1f)).roundToInt()
                         glow.maskFilter = BlurMaskFilter(size * GLOW_RATIO, BlurMaskFilter.Blur.NORMAL)
-                        canvas.drawText(text, k, k + 1, cx - w / 2f, y, glow)
+                        canvas.drawRunOf(text, k, k + 1, cx - w / 2f, y, glow)
                     }
-                    canvas.drawText(text, k, k + 1, cx - w / 2f, y, paint)
+                    canvas.drawRunOf(text, k, k + 1, cx - w / 2f, y, paint)
                     canvas.restore()
                 }
             } else {
@@ -444,8 +444,8 @@ internal class LyricsCardPainter internal constructor(
         for (k in 0 until n) {
             val s = bounds[k * 2]
             val e = bounds[k * 2 + 1]
-            lefts[k] = placed.x + paint.measureText(text, 0, s)
-            rights[k] = placed.x + paint.measureText(text, 0, e)
+            lefts[k] = placed.x + advanceAt(paint, text, s)
+            rights[k] = placed.x + advanceAt(paint, text, e)
             val c = (row.start + s).toFloat()
             val wi = words.indexOfFirst { c >= it.charStart && c < it.charEnd }
             wordAt[k] = wi
@@ -545,7 +545,7 @@ internal class LyricsCardPainter internal constructor(
             scratch.set(paint)
             scratch.shader = null
             scratch.alpha = inactiveAlpha
-            canvas.drawText(text, s, e, left, placed.baseline, scratch)
+            canvas.drawRunOf(text, s, e, left, placed.baseline, scratch)
 
             val hx = dist * w
             val front = feather * 0.6f
@@ -557,7 +557,7 @@ internal class LyricsCardPainter internal constructor(
             val settled = !waiting && hx - back >= w
             if (settled || wordDone) {
                 scratch.alpha = activeAlpha
-                canvas.drawText(text, s, e, left, placed.baseline, scratch)
+                canvas.drawRunOf(text, s, e, left, placed.baseline, scratch)
             } else if (reached) {
                 fun tone(a: Float) = ((activeAlpha * a).roundToInt() shl 24) or rgb
                 scratch.shader = LinearGradient(
@@ -567,7 +567,7 @@ internal class LyricsCardPainter internal constructor(
                     Shader.TileMode.CLAMP,
                 )
                 scratch.alpha = 255
-                canvas.drawText(text, s, e, left, placed.baseline, scratch)
+                canvas.drawRunOf(text, s, e, left, placed.baseline, scratch)
                 scratch.shader = null
             }
             canvas.restore()
@@ -654,6 +654,20 @@ private fun hash01(n: Int): Float {
     x = x xor (x ushr 16)
     return (x and 0xFFFF) / 65535f
 }
+
+/**
+ * The pen position at [offset], shaped within the whole [text] so the kerning
+ * with the letter that follows is counted. Measuring a prefix
+ * (`measureText(text, 0, offset)`) drops that pair, which pushed the "o" of
+ * "You" into the "u" when letters are drawn one by one.
+ */
+private fun advanceAt(paint: Paint, text: String, offset: Int): Float =
+    if (offset <= 0) 0f
+    else paint.getRunAdvance(text, 0, text.length, 0, text.length, false, offset.coerceAtMost(text.length))
+
+/** Draws [from, to) of [text] shaped in the context of the whole line, so a lone letter keeps its place. */
+private fun Canvas.drawRunOf(text: String, from: Int, to: Int, x: Float, y: Float, paint: Paint) =
+    drawTextRun(text, from, to, 0, text.length, x, y, false, paint)
 
 private fun isRtl(text: String): Boolean =
     !java.text.Bidi(text, java.text.Bidi.DIRECTION_DEFAULT_LEFT_TO_RIGHT).baseIsLeftToRight()
