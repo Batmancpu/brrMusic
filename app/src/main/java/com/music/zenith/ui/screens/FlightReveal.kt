@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -28,7 +29,8 @@ internal fun Modifier.flightReveal(
     rise: Dp = 14.dp,
     afterFlight: Boolean = false,
 ): Modifier {
-    val base = this.enterReveal(delayMs, rise)
+    // Saat menunggu penerbangan, geserannya cukup dari lapisan di bawah.
+    val base = this.enterReveal(delayMs, if (afterFlight) 0.dp else rise)
     if (!afterFlight) return base
     // Halaman yang sedang ditinggalkan tidak ikut disembunyikan oleh
     // penerbangan menuju halaman berikutnya.
@@ -44,6 +46,7 @@ internal fun Modifier.flightReveal(
         label = "flightReveal",
     )
     return base.graphicsLayer {
+        compositingStrategy = CompositingStrategy.ModulateAlpha
         alpha = landed
         translationY = (1f - landed) * rise.toPx()
     }

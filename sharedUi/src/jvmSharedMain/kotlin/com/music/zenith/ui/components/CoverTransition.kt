@@ -11,6 +11,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -139,6 +140,8 @@ fun Modifier.enterReveal(delayMs: Int = 0, rise: Dp = 14.dp): Modifier {
         label = "enterReveal",
     ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
     return this.graphicsLayer {
+        // Tanpa buffer offscreen, jadi isi yang sedang bergeser tidak terpotong.
+        compositingStrategy = CompositingStrategy.ModulateAlpha
         alpha = progress
         translationY = (1f - progress) * rise.toPx()
     }
