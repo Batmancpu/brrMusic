@@ -1425,7 +1425,10 @@ object AudioCache {
         val factory = CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(upstream)
-            .setCacheKeyFactory { videoId }
+            // An entry of its own: the plain `videoId` key can hold an addon's
+            // lossless file (Direct Source), and cutting Opus out of that, or
+            // streaming YouTube into the middle of it, fails the export.
+            .setCacheKeyFactory { "$videoId#share" }
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         return factory to Uri.parse(AutomixAnalysisSource.opusUri(videoId))
     }
