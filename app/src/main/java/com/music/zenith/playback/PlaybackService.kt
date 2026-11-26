@@ -9776,8 +9776,8 @@ class PlaybackService : MediaLibraryService() {
         const val UPGRADE_AFTER_CROSSFADE_MS = 5_000L
 
         /** Fade-out before a quality swap's cut, and fade-in once the new stream plays. */
-        const val UPGRADE_FADE_OUT_MS = 90L
-        const val UPGRADE_FADE_IN_MS = 220L
+        const val UPGRADE_FADE_OUT_MS = 40L
+        const val UPGRADE_FADE_IN_MS = 90L
         const val UPGRADE_FADE_STEP_MS = 10L
 
         /** How long the fade-in waits for playback to resume before restoring volume anyway. */
