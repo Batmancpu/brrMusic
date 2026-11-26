@@ -450,7 +450,16 @@ fun DetailScreen(
     val signatureEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
     val signatureBaseUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
     val signatureUpdates by ArtistSignatureRepository.updates.collectAsStateWithLifecycle()
-    var signature by remember(page.browseId) { mutableStateOf<ArtistSignature?>(null) }
+    // Diisi dari cache sejak frame pertama, supaya kembali ke halaman ini tidak
+    // sempat menampilkan nama polos sebelum signature muncul lagi.
+    var signature by remember(page.browseId) {
+        mutableStateOf(
+            ArtistSignatureRepository.cached(
+                page.title,
+                ArtistSignatureRepository.effectiveBaseUrl(signatureEnabled, signatureBaseUrl),
+            ).takeIf { isArtist },
+        )
+    }
     // Opened from a track, the title is the whole credit ("A, B & C") until the
     // page loads and swaps in the one artist's name. Searching a credit finds
     // nobody, so a title that reads as several artists waits for that swap; any
@@ -1625,7 +1634,8 @@ private fun ArtistHeader(
         // Whether the logo has actually been drawn. Until it has — a first fetch
         // of an Apple logo is a few hundred KB the CDN may still be resizing — the
         // name stands in for it, so the header is never left with nothing in it.
-        var logoShown by remember(imageUrl) { mutableStateOf(false) }
+        // Saveable: saat kembali dari album, "Signed by" langsung ada di tempatnya.
+        var logoShown by rememberSaveable(imageUrl) { mutableStateOf(false) }
         if (imageUrl != null) {
             val context = LocalPlatformContext.current
             var attempt by remember(imageUrl) { mutableIntStateOf(0) }

@@ -43,6 +43,12 @@ import androidx.compose.ui.Modifier
 val LocalCoverTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 val LocalCoverVisibilityScope = compositionLocalOf<AnimatedVisibilityScope?> { null }
 
+/**
+ * True saat halaman ini dikunjungi lagi (kembali dari halaman di atasnya),
+ * sehingga isinya tidak memutar ulang animasi masuk.
+ */
+val LocalPageRevisit = compositionLocalOf { false }
+
 // One tapped card per release rather than a single global. Opening an album and
 // then an artist from it must not make the album's card forget it was the one
 // tapped, or going back twice leaves the cover with nowhere to fly to.
@@ -119,6 +125,9 @@ private val CoverEasing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
 @Composable
 fun Modifier.enterReveal(delayMs: Int = 0, rise: Dp = 14.dp): Modifier {
     val visibility = LocalCoverVisibilityScope.current ?: return this
+    // Halaman yang sudah pernah tampil langsung utuh. Tanpa ini tombol, kartu,
+    // dan signature hilang lalu muncul lagi tepat saat cover terbang pulang.
+    if (LocalPageRevisit.current) return this
     val progress by visibility.transition.animateFloat(
         transitionSpec = {
             if (targetState == EnterExitState.Visible) {

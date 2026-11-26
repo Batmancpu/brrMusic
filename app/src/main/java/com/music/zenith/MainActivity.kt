@@ -170,6 +170,7 @@ import com.music.zenith.ui.navigation.AppDestination
 import com.music.zenith.ui.components.CoverFlightHost
 import com.music.zenith.ui.components.CoverFlightLayer
 import com.music.zenith.ui.components.LocalCoverVisibilityScope
+import com.music.zenith.ui.components.LocalPageRevisit
 import com.music.zenith.ui.navigation.AppRoute
 import com.music.zenith.ui.screens.EqualizerPresetPage
 import com.music.zenith.ui.screens.SettingsChoiceKind
@@ -4328,9 +4329,13 @@ private fun ZenithApp(
                     // the background, or this page on its way out: each frame of
                     // them redraws the page under the glass, for nobody.
                     val barsMotion = artworkMotion && transition.targetState == EnterExitState.Visible
+                    // Dibaca sebelum key dicatat di bawah: sudah tercatat berarti
+                    // halaman ini masih di stack dan sedang didatangi kembali.
+                    val revisit = remember(key) { key in pageKeysSeen }
                     CompositionLocalProvider(
                         LocalPlayingBarsMotion provides barsMotion,
                         LocalCoverVisibilityScope provides this@AnimatedContent,
+                        LocalPageRevisit provides revisit,
                     ) {
                         if (destination is AppDestination.Tab) {
                             pageContent()
