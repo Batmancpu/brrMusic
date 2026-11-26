@@ -1270,6 +1270,7 @@ object AudioCache {
                 activeDs = if (scheme == "file" || scheme == "content") {
                     upstreamDs
                 } else {
+                    dropStrandedForeignEntry(dataSpec.uri)
                     settleDirectEntry(dataSpec.uri)
                     cacheDs
                 }
@@ -1362,6 +1363,46 @@ object AudioCache {
             // A released media period interrupts its loader; that is a skip.
             throw java.io.InterruptedIOException("direct lookup for $videoId interrupted")
         }
+    }
+
+    /**
+     * Clears a half-filled entry that an addon or module started and that
+     * nothing in this process remembers any more — a restart, or a
+     * [StreamChoice] that has expired.
+     *
+     * [CacheDataSource] serves the bytes on disk and only calls the resolver
+     * where they run out, and by then the race may hand the rest of the file
+     * to another server: a different rendition spliced into the middle of
+     * the first one, which plays until the seam and then fails. Unlike
+     * YouTube's or JioSaavn's, an addon's URL is not one that can be reused
+     * to finish the file — its continuation requests are refused — so the
+     * only safe way out is to start the entry again from the top.
+     *
+     * Complete entries are never written to again and stay. Nothing is
+     * dropped offline, where the partial bytes are all there is.
+     */
+    private fun dropStrandedForeignEntry(uri: Uri) {
+        if (uri.scheme != "zenith" || uri.authority != "watch") return
+        val videoId = uri.getQueryParameter("v") ?: return
+        if (QualityUpgrade.cacheTag(uri) != null ||
+            uri.getQueryParameter(WATCH_READ_PARAM) != null ||
+            AutomixAnalysisSource.requestsYouTubeOpus(
+                uri.getQueryParameter(AutomixAnalysisSource.OPUS_QUERY_PARAMETER),
+            )
+        ) {
+            return
+        }
+        if (StreamChoice.of(videoId) != null || isOffline()) return
+        val key = keyFactory.buildCacheKey(DataSpec(uri))
+        val stranded = runCatching {
+            cache.getCachedSpans(key).isNotEmpty() &&
+                !isComplete(key) &&
+                cache.getContentMetadata(key).get(META_ORIGIN, null as String?) == Origin.OTHER.name
+        }.getOrDefault(false)
+        if (!stranded) return
+        runCatching { cache.removeResource(key) }
+            .onSuccess { TrackLog.d(TAG, "dropped stranded partial addon copy $key", about = videoId) }
+            .onFailure { TrackLog.d(TAG, "cache entry $key still in use: ${it.message}", about = videoId) }
     }
 
     /** Clears [key]'s YouTube bytes so an addon's file can fill it from the top. */
