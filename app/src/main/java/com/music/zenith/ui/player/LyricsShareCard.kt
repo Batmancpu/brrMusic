@@ -14,6 +14,7 @@ import com.motion.lyrics.HeadOut
 import com.motion.lyrics.MotionTuning
 import com.motion.lyrics.MotionWord
 import com.motion.lyrics.computeHead
+import com.motion.lyrics.dampedStep
 import com.motion.lyrics.smoothstep
 import com.motion.lyrics.toMotionWords
 import com.music.zenith.data.lyrics.CharGrowth
@@ -214,6 +215,7 @@ internal class LyricsCardPainter internal constructor(
     private val halo = Paint(Paint.ANTI_ALIAS_FLAG)
     private val motionWords = HashMap<Int, List<MotionWord>>()
     private val clusterCache = HashMap<Row, IntArray>()
+    private val follow = HashMap<Row, LiquidFollow>()
 
     /** Each line's place among the sung lines (gaps don't count), for the falloff. */
     private val rank = IntArray(lines.size).also { ranks ->
@@ -424,7 +426,7 @@ internal class LyricsCardPainter internal constructor(
         if (n == 0) return
         computeHead(words, pos, headOut)
         val head = headOut.head
-        val sung = headOut.sung
+        var sung = headOut.sung
         val riseDist = size * MotionTuning.RiseDistanceEm
         val top = placed.baseline + paint.ascent()
         val bottom = placed.baseline + paint.descent()
@@ -467,6 +469,36 @@ internal class LyricsCardPainter internal constructor(
             rise[k] = riseTarget
             swell[k] = swellTarget
         }
+
+        // Follow the targets with the panel's own critically damped springs, so
+        // the rise, swell and glow ease instead of jumping to each frame's value.
+        // A seek or a cut to another stretch of the track snaps instead.
+        val state = follow.getOrPut(placed.row) { LiquidFollow(n) }
+        val dtMs = if (state.lastPos == Long.MIN_VALUE) Long.MAX_VALUE else pos - state.lastPos
+        val snap = dtMs < 0L || dtMs > FOLLOW_SNAP_MS
+        if (dtMs != 0L) {
+            val dt = (dtMs / 1000f).coerceIn(0.001f, 0.25f)
+            for (k in 0 until n) {
+                if (snap) {
+                    state.rise[k] = rise[k]; state.riseVel[k] = 0f
+                    state.swell[k] = swell[k]; state.swellVel[k] = 0f
+                } else {
+                    dampedStep(state.rise, state.riseVel, k, rise[k], MotionTuning.RiseFollowSec, dt)
+                    dampedStep(state.swell, state.swellVel, k, swell[k], MotionTuning.SwellFollowSec, dt)
+                }
+            }
+            if (snap) {
+                state.bloom[0] = sung; state.bloomVel[0] = 0f
+            } else {
+                dampedStep(state.bloom, state.bloomVel, 0, sung, MotionTuning.BloomFollowSec, dt)
+            }
+            state.lastPos = pos
+        }
+        for (k in 0 until n) {
+            rise[k] = state.rise[k]
+            swell[k] = state.swell[k]
+        }
+        sung = state.bloom[0]
 
         // Glow first, under the letters, fading continuously.
         val glowR = size * MotionTuning.GlowRadiusEm
@@ -600,6 +632,20 @@ private const val FEATHER_RATIO = 30f / 34f
 private const val RISE_RATIO = 2f / 34f
 private const val HEADROOM_RATIO = 0.35f
 private const val GLOW_RATIO = 6f / 34f
+
+/** A jump in track time longer than this is a seek or a cut, not a frame step. */
+private const val FOLLOW_SNAP_MS = 250L
+
+/** The eased rise, swell and glow of one row, carried from frame to frame. */
+private class LiquidFollow(n: Int) {
+    val rise = FloatArray(n)
+    val riseVel = FloatArray(n)
+    val swell = FloatArray(n)
+    val swellVel = FloatArray(n)
+    val bloom = FloatArray(1)
+    val bloomVel = FloatArray(1)
+    var lastPos = Long.MIN_VALUE
+}
 
 /** A repeatable pseudo-random 0..1 from [n], so a sparkle sits where it did last frame. */
 private fun hash01(n: Int): Float {
