@@ -419,6 +419,9 @@ half4 main(float2 fc) {
 
     float g = clamp(0.5 + wFar.y * 0.85 + 0.18 * sin(wFar.x * 2.0 + t * 0.13), 0.0, 1.0);
     float3 col = mix(pal(2.0 + t * 0.012), pal(3.55 + t * 0.012), g);
+    // Palet ikut dibaca di sepanjang medan aliran, jadi tidak pernah ada area satu warna rata.
+    float sweep = wFar.x * 1.1 + wFar.y * 0.8 + 0.5 * sin(wNear.y * 2.4 + t * 0.11);
+    col = mix(col, pal(sweep * 1.6 + t * 0.018 + iSeed * 5.0), 0.55);
 
     float H = 0.0;
     float2 G = float2(0.0);
@@ -438,7 +441,9 @@ half4 main(float2 fc) {
         float2 r = float2(
             0.26 + 0.32 * h3 + 0.08 * sin(tl * (0.10 + 0.10 * h4) + ks),
             0.11 + 0.13 * h4 + 0.05 * sin(tl * (0.12 + 0.10 * h1) + ks * 2.0)
-        ) * mix(1.35, 1.0, near);
+        ) * mix(1.5, 1.15, near);
+        // Pusat blob ditarik ke dalam kartu supaya tidak ada saat semuanya keluar bingkai.
+        c *= 0.72;
         float dir = h2 > 0.5 ? 1.0 : -1.0;
         float ang = tl * (0.04 + 0.06 * h1) * dir + ks * 1.3;
         float2 ww = mix(wFar, wNear, near);
@@ -448,7 +453,7 @@ half4 main(float2 fc) {
 
         // Bayangan jatuh blob dekat ke lapisan di bawahnya.
         float2 d2 = rot(dv - float2(0.04, 0.06), ang) / r;
-        col *= 1.0 - near * 0.28 * exp(-dot(d2, d2)) * (1.0 - clamp(a, 0.0, 1.0));
+        col *= 1.0 - near * 0.16 * exp(-dot(d2, d2)) * (1.0 - clamp(a, 0.0, 1.0));
 
         float3 pc = pal(ks * 0.83 + tl * 0.022 + h1 * 2.0) * mix(0.78, 1.0, near);
         col = mix(col, pc, clamp(a, 0.0, 1.0) * mix(0.70, 0.92, near));
@@ -460,14 +465,14 @@ half4 main(float2 fc) {
 
     // Pencahayaan: terang dari kiri atas, sisi sebaliknya menggelap, sorot spekular dan rim.
     float3 L = normalize(float3(-0.55, -0.65, 0.62));
-    float3 n = normalize(float3(-G * 0.30, 1.0));
-    float shade = clamp(H, 0.0, 1.0);
-    col *= 1.0 + (dot(n, L) - L.z) * 1.1 * shade;
+    float3 n = normalize(float3(-G * 0.18, 1.0));
+    float shade = smoothstep(0.0, 1.0, H);
+    col *= 1.0 + (dot(n, L) - L.z) * 0.8 * shade;
     float3 hv = normalize(L + float3(0.0, 0.0, 1.0));
-    float spec = pow(clamp(dot(n, hv), 0.0, 1.0), 48.0) * smoothstep(0.08, 0.6, H);
-    col += float3(1.0, 0.96, 0.94) * spec * 0.45;
-    col += pow(1.0 - n.z, 1.6) * smoothstep(0.05, 0.5, H) * 0.22;
-    col *= mix(0.86, 1.0, smoothstep(0.0, 0.7, H));
+    float spec = pow(clamp(dot(n, hv), 0.0, 1.0), 14.0) * smoothstep(0.1, 0.9, H);
+    col += float3(1.0, 0.96, 0.94) * spec * 0.20;
+    col += pow(1.0 - n.z, 2.0) * smoothstep(0.1, 0.8, H) * 0.10;
+    col *= mix(0.93, 1.0, smoothstep(0.0, 0.7, H));
 
     // Kilau lembut seperti cahaya yang menembus cairan.
     float ridge = pow(0.5 + 0.5 * sin(wNear.x * 2.6 + wNear.y * 1.9 + t * 0.17), 3.0);

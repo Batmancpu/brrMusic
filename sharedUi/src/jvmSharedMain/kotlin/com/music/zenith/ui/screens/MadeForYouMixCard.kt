@@ -117,8 +117,8 @@ fun MixCoverOverlay(title: String, subtitle: String, modifier: Modifier = Modifi
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        0.45f to Color.Black.copy(alpha = 0.30f),
-                        1f to Color.Black.copy(alpha = 0.62f),
+                        0.45f to Color.Black.copy(alpha = 0.16f),
+                        1f to Color.Black.copy(alpha = 0.42f),
                     ),
                 ),
         )
