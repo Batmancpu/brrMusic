@@ -79,6 +79,14 @@ import com.music.zenith.ui.components.instantPressClickable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.layout.BoxWithConstraints
 import com.music.zenith.ui.components.ShelfRow
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.snapshotFlow
+import com.music.zenith.data.canvas.CanvasArtwork
+import com.music.zenith.ui.AppUi
+import com.music.zenith.ui.player.CanvasArtworkPlayer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /** The countries YouTube Music publishes charts for; "ZZ" is Global. */
 val CHART_COUNTRY_CODES: List<String> = listOf(
@@ -222,6 +230,75 @@ private fun LazyListScope.shelfPageItems(
     }
 }
 
+/**
+ * Which New releases covers are playing their clip. Building a player blocks the
+ * main thread and a decoder is not free, so only a few play at once; the rest
+ * keep their still until a slot frees up.
+ */
+private object ReleaseClips {
+    /** Asked rather than read, so a scroll recomposes nothing. Set by the page. */
+    var scrolling: () -> Boolean = { false }
+    private var playing = 0
+
+    fun tryAcquire(): Boolean {
+        if (playing >= RELEASE_CLIPS_AT_ONCE) return false
+        playing++
+        return true
+    }
+
+    fun release() {
+        if (playing > 0) playing--
+    }
+}
+
+private const val RELEASE_CLIPS_AT_ONCE = 3
+private const val RELEASE_CLIP_DELAY_MS = 400L
+private const val RELEASE_CLIP_RETRY_MS = 500L
+
+/** The artist off a card's "Single • Artist" credit line, which the clip lookup needs. */
+private fun releaseArtistOf(subtitle: String): String? =
+    subtitle.split("•").map { it.trim() }.drop(1).firstOrNull { it.isNotBlank() }
+
+/**
+ * The release's animated cover over its still, as the album page plays it.
+ * Only for an album or single: a track, playlist or artist has no sleeve that
+ * moves. Looked up once per card, and played only once a slot is free and the
+ * page is at rest.
+ */
+@Composable
+private fun ReleaseCardMotion(item: ShelfItem, modifier: Modifier) {
+    val browseId = item.browseId ?: return
+    val isRelease = item.videoId == null &&
+        (browseId.startsWith("MPRE") || browseId.startsWith("OLAK") || browseId.startsWith("VLOLAK"))
+    val artist = remember(item.subtitle) { releaseArtistOf(item.subtitle) }
+    if (!isRelease || artist == null || !LocalArtworkImages.current) return
+    val clip by produceState<CanvasArtwork?>(null, browseId) {
+        value = AppUi.host.releaseMotion(item.title, artist)
+    }
+    val canvas = clip ?: return
+    var mounted by remember(canvas) { mutableStateOf(false) }
+    val held = mounted
+    DisposableEffect(held) {
+        onDispose { if (held) ReleaseClips.release() }
+    }
+    LaunchedEffect(canvas) {
+        delay(RELEASE_CLIP_DELAY_MS)
+        while (true) {
+            snapshotFlow { ReleaseClips.scrolling() }.first { !it }
+            if (ReleaseClips.tryAcquire()) break
+            delay(RELEASE_CLIP_RETRY_MS)
+        }
+        mounted = true
+    }
+    if (!mounted) return
+    CanvasArtworkPlayer(
+        canvas = canvas,
+        isPlaying = true,
+        modifier = modifier,
+        pausedForTransition = ReleaseClips.scrolling(),
+    )
+}
+
 /** One square cover with title and credit underneath, for the New releases grid. */
 @Composable
 private fun ReleaseGridCard(
@@ -250,6 +327,7 @@ private fun ReleaseGridCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            ReleaseCardMotion(item, Modifier.fillMaxSize())
             if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
         }
         Spacer(Modifier.height(8.dp))
@@ -531,6 +609,10 @@ fun NewReleasesPage(
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) { onLoad() }
+    DisposableEffect(listState) {
+        ReleaseClips.scrolling = { listState.isScrollInProgress }
+        onDispose { ReleaseClips.scrolling = { false } }
+    }
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
