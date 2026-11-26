@@ -47,6 +47,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import com.music.zenith.data.TrackLog
 import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -255,6 +256,15 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
      */
     fun analysisFor(trackId: String): TrackAnalysis = results[trackId] ?: TrackAnalysis(trackId = trackId)
 
+    private val lastNotes = ConcurrentHashMap<String, String>()
+
+    /** Mencatat ke Copy Log hanya saat alasannya berubah, supaya tidak tiap tick. */
+    private fun note(trackId: String, reason: String) {
+        if (lastNotes.put(trackId, reason) != reason) {
+            TrackLog.d(TAG, "analysis $trackId: $reason", about = trackId)
+        }
+    }
+
     /**
      * Seperti [analysisFor], tapi jatuh ke penyimpanan disk bila belum ada di memori.
      * Membaca file, jadi hanya untuk pemanggil yang sudah di luar thread pemutaran
@@ -327,10 +337,15 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         // A track measured in an earlier session costs nothing to restore, so
         // only the work below waits for the phone to cool.
         if (overheated) {
+            note(trackId, "paused, phone is too hot")
             restoreOnce(trackId)
             return
         }
-        val analysisUri = analysisUriFor(trackId, uri) ?: return
+        val analysisUri = analysisUriFor(trackId, uri)
+        if (analysisUri == null) {
+            note(trackId, "no YouTube copy to analyse (addon row or no match yet)")
+            return
+        }
 
         // Only the canonical YouTube rendition of this recording will do, not
         // the source substitute the player happens to be on: see
@@ -416,6 +431,11 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             // never fetches it at all — see [AudioCache.requestAnalysisHead],
             // which is a no-op after the first call and for anything that isn't
             // a YouTube-backed track.
+            note(
+                trackId,
+                "waiting for audio, copies=" + cache.renditionsOf(analysisUri)
+                    .joinToString { "${it.key}:${it.cachedPrefix}/${it.contentLength}" },
+            )
             cache.requestAnalysisHead(analysisUri)
             return
         }
@@ -450,6 +470,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 if (usableComplete) {
                     val outcome = analyze(trackId, analysisUri, durationSeconds)
                     val whole = outcome.analysis
+                    note(trackId, "full pass ok=${whole != null} decodedShort=${outcome.decodedShort}")
                     if (whole != null) {
                         results[trackId] = whole
                         provisional.remove(trackId)
@@ -481,7 +502,13 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                     // Marked before it is published, so a reader on the playback
                     // thread can never see a provisional result that is not
                     // flagged as one.
-                    analyzeHead(trackId, analysisUri, durationSeconds, headRendition!!)?.let { head ->
+                    val head = analyzeHead(trackId, analysisUri, durationSeconds, headRendition!!)
+                    note(
+                        trackId,
+                        "head pass ok=${head != null} key=${headRendition.key} " +
+                            "bytes=${headRendition.cachedPrefix}/${headRendition.contentLength}",
+                    )
+                    if (head != null) {
                         provisional.add(trackId)
                         results[trackId] = head
                     }
@@ -493,6 +520,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 // entire failure mode is meant to be "this track goes
                 // unanalysed".
                 Log.w(TAG, "Analysis of $trackId failed", error)
+                note(trackId, "failed: ${error.javaClass.simpleName}: ${error.message}")
                 // A failed head pass records nothing: the whole-track pass reads
                 // a different, complete file and deserves its own attempt.
                 // [headWorthTrying] has already made sure the head is not tried
