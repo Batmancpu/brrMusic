@@ -1311,6 +1311,7 @@ private fun ReleaseHeader(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .flightReveal(200, afterFlight = fullBleed)
+                    .lateReveal(40)
                     .padding(horizontal = HEADER_GUTTER)
                     .let { m ->
                         val id = artist?.artistId
@@ -1326,7 +1327,7 @@ private fun ReleaseHeader(
         if (meta.isNotBlank() || albumQualityShown != null) {
             Spacer(Modifier.height(4.dp))
             Row(
-                modifier = Modifier.flightReveal(240, afterFlight = fullBleed).padding(horizontal = HEADER_GUTTER),
+                modifier = Modifier.flightReveal(240, afterFlight = fullBleed).lateReveal(80).padding(horizontal = HEADER_GUTTER),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1372,6 +1373,7 @@ private fun ReleaseHeader(
             Row(
                 modifier = Modifier
                     .flightReveal(290, afterFlight = fullBleed)
+                    .lateReveal(130)
                     .widthIn(max = RELEASE_ACTIONS_MAX_WIDTH)
                     .fillMaxWidth()
                     .padding(horizontal = HEADER_GUTTER),

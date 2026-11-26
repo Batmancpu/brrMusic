@@ -2913,9 +2913,9 @@ fun NowPlayingScreen(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
-                                    // Faded with the player rather than flown with
-                                    // the sleeve: the cover in the bar has none.
-                                    .graphicsLayer { alpha = if (panelOpen || landscapeFullBleed) 0f else dockFade() },
+                                    // Tampil hanya setelah cover mendarat: selama terbang,
+                                    // cover digambar di atas semuanya dan menutupi teks ini.
+                                    .graphicsLayer { alpha = if (panelOpen || landscapeFullBleed) 0f else headerReveal.value },
                             )
                         }
                     },
@@ -5259,9 +5259,9 @@ fun NowPlayingScreen(
                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                         .graphicsLayer {
                                             // Tidak tampil selama cover terbang: cover digambar di
-                                            // atas semuanya dan akan menutupi teks ini.
-                                            val dockShown = ((dockT() - 0.85f) / 0.15f).coerceIn(0f, 1f)
-                                            alpha = (1f - p() * 2f) * spotifyChromeAlpha * dockShown
+                                            // atas semuanya dan akan menutupi teks ini. headerReveal
+                                            // baru naik setelah sheet terbuka penuh (cover sudah mendarat).
+                                            alpha = (1f - p() * 2f) * spotifyChromeAlpha * headerReveal.value
                                         },
                                 )
                             }
