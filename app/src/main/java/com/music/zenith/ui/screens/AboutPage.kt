@@ -9,7 +9,7 @@ import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -261,12 +262,16 @@ private fun AboutHero() {
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
+                // Digambar melebihi batas kolom (ke atas sampai bawah bar, ke bawah
+                // sampai gradien habis) supaya tidak ada tepi keras di glow.
                 drawRect(
-                    Brush.radialGradient(
+                    brush = Brush.radialGradient(
                         colors = listOf(accent.copy(alpha = 0.18f), Color.Transparent),
                         center = Offset(size.width / 2f, 80.dp.toPx()),
-                        radius = 220.dp.toPx(),
+                        radius = 260.dp.toPx(),
                     ),
+                    topLeft = Offset(0f, -400.dp.toPx()),
+                    size = Size(size.width, size.height + 700.dp.toPx()),
                 )
             }
             .padding(top = 26.dp),
@@ -279,8 +284,7 @@ private fun AboutHero() {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(96.dp)
-                    .shadow(elevation = 16.dp, shape = iconShape, clip = true)
-                    .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), iconShape),
+                    .shadow(elevation = 16.dp, shape = iconShape, clip = true),
             )
         } else {
             Box(

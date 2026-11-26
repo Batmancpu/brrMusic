@@ -1472,7 +1472,11 @@ private fun ReleaseHeader(
         // masih kosong, dan baris Shuffle/Play belum ada, tapi tombol ini harus.
         // Dengan lagu, tombol ini sudah ada di baris aksi (addSongsInRow); pil lebar
         // hanya untuk playlist kosong atau saat baris itu sudah dipakai tombol lain.
-        if (onAddSongs != null && !(addSongsInRow && songs.isNotEmpty())) {
+        // Hanya setelah daftar lagu selesai dimuat: selama Loading, songs masih
+        // kosong dan pil ini sempat muncul lalu hilang saat lagu datang.
+        if (onAddSongs != null && page.songs is UiState.Success &&
+            !(addSongsInRow && songs.isNotEmpty())
+        ) {
             Spacer(Modifier.height(if (songs.isEmpty()) 18.dp else 10.dp))
             ActionPill(
                 icon = ZenithIcons.Plus,
