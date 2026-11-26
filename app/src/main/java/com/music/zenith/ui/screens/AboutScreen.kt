@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
+
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Description
@@ -137,13 +137,6 @@ internal fun AboutContent(version: String) {
             title = "BitChord",
             subtitle = "The open-source app Zenith is forked from",
             onClick = { context.openAboutLink("https://github.com/kushagrasinghx/BitChord") },
-        )
-        RowDivider()
-        SettingsRow(
-            icon = Icons.Rounded.AutoAwesome,
-            title = "Backdrop by Kyant0",
-            subtitle = "Liquid glass engine \u00b7 Apache-2.0",
-            onClick = { context.openAboutLink("https://github.com/Kyant0/backdrop") },
         )
     }
     Spacer(Modifier.height(24.dp))
