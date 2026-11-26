@@ -125,8 +125,16 @@ def settings_footer(value: str) -> str:
     # receives an explicit attribution link (not falsely labelled as our Reddit).
     value = once(value, 'context.openLink("https://github.com/rezapranata089-bit/Zenith")',
                  'context.openLink("https://github.com/Batmancpu/brrMusic")', "project GitHub URL")
-    value = once(value, 'context.openLink("https://github.com/rezapranata089-bit")',
-                 'context.openLink("https://github.com/Batmancpu")', "maintainer URL")
+    # Upstream moved the developer link to TikTok in the 2026-11-26 snapshot.
+    # Accept either reviewed URL, and continue to label this fork's maintainer correctly.
+    developer_urls = (
+        'context.openLink("https://github.com/rezapranata089-bit")',
+        'context.openLink("https://www.tiktok.com/@zeux.editz?_r=1&_t=ZS-9BgOcHcAans")',
+    )
+    matched = [url for url in developer_urls if value.count(url) == 1]
+    if len(matched) != 1:
+        raise SystemExit("Settings developer link changed beyond reviewed variants")
+    value = once(value, matched[0], 'context.openLink("https://github.com/Batmancpu")', "maintainer URL")
     value = once(value, 'text = "Reddit",', 'text = "Upstream",', "upstream label")
     value = once(value, 'context.openLink("https://www.reddit.com/r/ZenithMusic/s/gN6chb7onR")',
                  'context.openLink("https://github.com/rezapranata089-bit/Zenith")', "upstream credit URL")

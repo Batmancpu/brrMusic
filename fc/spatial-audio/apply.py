@@ -541,7 +541,7 @@ replace_once(MENU,
     "    spatialAudioDecision: SpatialAudioDecision? = null,")
 insert_after(MENU, "    val isOffline = song.localUri != null\n",
     "\n    var spatialPreference by remember(song.videoId) { mutableStateOf(spatialAudioPreference) }\n")
-replace_once(MENU,
+menu_row_old = (
     "            // Stays open after a tap: the label flips in place and the change\n"
     "            // is audible at once, so the two settings can be compared by ear.\n"
     "            onToggleSpatialAudio?.let {\n"
@@ -553,7 +553,31 @@ replace_once(MENU,
     "                    accent = palette.accent,\n"
     "                    onClick = it,\n"
     "                )\n"
-    "            }\n",
+    "            }\n"
+)
+menu_row_current = (
+    "            // Stays open after a tap: the label flips in place and the change\n"
+    "            // is audible at once, so the two settings can be compared by ear.\n"
+    "            onToggleSpatialAudio?.let {\n"
+    "                ActionRow(\n"
+    "                    icon = SfIcons.SurroundSound,\n"
+    "                    label = stringResource(R.string.spatial_audio),\n"
+    "                    value = stringResource(\n"
+    "                        if (spatialAudioOn) R.string.spatial_audio_state_on else R.string.spatial_audio_state_off,\n"
+    "                    ),\n"
+    "                    tint = if (spatialAudioOn) palette.accent else null,\n"
+    "                    description = stringResource(R.string.spatial_audio_this_song_only),\n"
+    "                    accent = if (spatialAudioOn) palette.accent else palette.onBackgroundVariant,\n"
+    "                    onClick = it,\n"
+    "                )\n"
+    "            }\n"
+)
+# Upstream 2026-11-26 uses a status and per-song explanation.
+menu_source = read(MENU)
+menu_matches = [row for row in (menu_row_old, menu_row_current) if menu_source.count(row) == 1]
+if len(menu_matches) != 1:
+    raise SystemExit("Spatial Audio menu row changed beyond reviewed variants")
+replace_once(MENU, menu_matches[0],
     "            // One binary per-track control. Auto is internal policy, never a third toggle.\n"
     "            onSetSpatialAudioPreference?.let { setPreference ->\n"
     "                val isAutomatic = spatialPreference == SpatialAudioPreference.AUTO &&\n"
@@ -583,6 +607,7 @@ replace_once(MENU,
     "                    label = stringResource(R.string.spatial_audio),\n"
     "                    value = stringResource(status),\n"
     "                    tint = if (greenAutoOn) Color(0xFF34C759) else null,\n"
+    "                    description = stringResource(R.string.spatial_audio_this_song_only),\n"
     "                    accent = if (greenAutoOn) Color(0xFF34C759) else palette.accent,\n"
     "                    onClick = {\n"
     "                        val nextPreference = if (effectiveOn) SpatialAudioPreference.FORCE_OFF else SpatialAudioPreference.FORCE_ON\n"
