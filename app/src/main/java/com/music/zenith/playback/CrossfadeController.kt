@@ -1656,6 +1656,12 @@ class CrossfadeController(
             }
         }
 
+        TrackLog.d(
+            TAG,
+            "mix arm smart=$smart fade=${fade}ms at=${out.currentPosition}ms end=${endMs}ms " +
+                "ready=${items.getOrNull(nextIndex)?.let(nextStreamReady)}",
+            about = null,
+        )
         phase = Phase.ARMING
         return true
     }
@@ -1779,7 +1785,10 @@ class CrossfadeController(
         // A standby that never got the incoming track ready has nothing to fade
         // up. Give up and let the queue move on plainly rather than fading into
         // silence.
-        if (expired && !ready) return bail()
+        if (expired && !ready) {
+            TrackLog.d(TAG, "mix cancelled: next track not ready before the arm timeout", about = null)
+            return bail()
+        }
 
         // Both sinks write seconds ahead of the speaker. The standby fills its
         // whole buffer while it waits here, so its filter has to be at the
@@ -1832,6 +1841,7 @@ class CrossfadeController(
 
         into.volume = 0f
         into.playWhenReady = true
+        TrackLog.d(TAG, "mix start at=${out.currentPosition}ms", about = null)
         fadeStartedAt = SystemClock.elapsedRealtime()
         phaseLogNext = 0
         phaseLogCount = 0
@@ -2574,6 +2584,7 @@ class CrossfadeController(
         val outPort = loopPortOf(out) ?: return
         val inPort = loopPortOf(into) ?: return
         endEase(clickless = false)
+        TrackLog.d(TAG, "mix loop arm at=${out.currentPosition}ms", about = null)
         phase = Phase.LOOP_ARMING
         smartFadeActive = true
         handedOff = false
