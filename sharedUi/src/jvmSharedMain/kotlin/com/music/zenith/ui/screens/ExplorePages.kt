@@ -68,6 +68,9 @@ import com.music.zenith.data.model.artworkAt
 import com.music.zenith.ui.components.SearchPlayingBars
 import com.music.zenith.ui.components.longPressMenuClickable
 import com.music.zenith.ui.components.thumbnailBorder
+import com.music.zenith.ui.components.coverFlightSource
+import com.music.zenith.ui.components.rememberCoverFlightTap
+import com.music.zenith.ui.player.CanvasFrameGrab
 import com.music.zenith.data.model.HomeShelf
 import com.music.zenith.data.model.ShelfItem
 import com.music.zenith.data.model.Song
@@ -266,7 +269,12 @@ private fun releaseArtistOf(subtitle: String): String? =
  * page is at rest.
  */
 @Composable
-private fun ReleaseCardMotion(item: ShelfItem, modifier: Modifier) {
+private fun ReleaseCardMotion(
+    item: ShelfItem,
+    modifier: Modifier,
+    frameGrab: CanvasFrameGrab,
+    onCanvas: (CanvasArtwork) -> Unit,
+) {
     val browseId = item.browseId ?: return
     val isRelease = item.videoId == null &&
         (browseId.startsWith("MPRE") || browseId.startsWith("OLAK") || browseId.startsWith("VLOLAK"))
@@ -291,11 +299,14 @@ private fun ReleaseCardMotion(item: ShelfItem, modifier: Modifier) {
         mounted = true
     }
     if (!mounted) return
+    // Klip yang sedang diputar diserahkan ke card agar ikut terbang ke halamannya.
+    LaunchedEffect(canvas) { onCanvas(canvas) }
     CanvasArtworkPlayer(
         canvas = canvas,
         isPlaying = true,
         modifier = modifier,
         pausedForTransition = ReleaseClips.scrolling(),
+        frameGrab = frameGrab,
     )
 }
 
@@ -310,11 +321,28 @@ private fun ReleaseGridCard(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(12.dp)
+    val coverToken = remember { Any() }
+    // Klip yang sedang diputar card ini dan pembaca frame-nya, untuk cover terbang.
+    var flightCanvas by remember(item.browseId) { mutableStateOf<CanvasArtwork?>(null) }
+    val frameGrab = remember { CanvasFrameGrab() }
+    val openWithCover = rememberCoverFlightTap(
+        // Card berisi lagu langsung diputar, jadi tidak ada halaman tujuan.
+        browseId = item.browseId.takeIf { item.videoId == null },
+        token = coverToken,
+        action = onClick,
+        grabFrame = { frameGrab.grab?.invoke() },
+    )
     Column(
-        modifier = modifier.longPressMenuClickable(onClick = onClick, onLongClick = onLongPress),
+        modifier = modifier.longPressMenuClickable(onClick = openWithCover, onLongClick = onLongPress),
     ) {
         Box(
             modifier = Modifier
+                .coverFlightSource(
+                    coverToken,
+                    item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                    12.dp,
+                    canvas = flightCanvas,
+                )
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(shape)
@@ -327,7 +355,12 @@ private fun ReleaseGridCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            ReleaseCardMotion(item, Modifier.fillMaxSize())
+            ReleaseCardMotion(
+                item = item,
+                modifier = Modifier.fillMaxSize(),
+                frameGrab = frameGrab,
+                onCanvas = { flightCanvas = it },
+            )
             if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
         }
         Spacer(Modifier.height(8.dp))
