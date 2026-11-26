@@ -1770,6 +1770,8 @@ class CrossfadeController(
      * this is only ever waiting on a buffer.
      */
     private fun driveArming() {
+        val standbyPlayer = incoming
+        if (standbyPlayer != null && reopenStandbyAsManifest(standbyPlayer)) return
         if (manualFade) return driveManualArming()
         val out = outgoing ?: return bail()
         val into = incoming ?: return bail()
@@ -1823,6 +1825,46 @@ class CrossfadeController(
         val atFadePoint = fadeEndMs <= 0L || fadeEndMs - out.currentPosition <= fadeMs
         if (!atFadePoint) return
         if (ready) startFade()
+    }
+
+    private var manifestReopening: String? = null
+
+    /**
+     * Addon bisa mengirim manifest DASH/HLS yang gagal dibuka sebagai audio biasa.
+     * Player utama membukanya ulang sendiri; standby harus melakukannya di sini.
+     *
+     * @return true selama pembukaan ulang sedang berjalan.
+     */
+    private fun reopenStandbyAsManifest(into: ExoPlayer): Boolean {
+        val item = into.currentMediaItem ?: return false
+        if (manifestReopening == item.mediaId) return true
+        if (into.playerError?.errorCode != PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) return false
+        if (item.localConfiguration?.mimeType != null) return false
+        val mime = StreamContainer.manifestServing(item.mediaId) ?: return false
+        val uri = item.localConfiguration?.uri ?: return false
+        val reopened = StreamContainer.markedForManifestReopen(uri.toString(), mime)
+        if (reopened == uri.toString()) return false
+
+        TrackLog.w(TAG, "mix: reopening next track ${item.mediaId} as $mime", about = null)
+        manifestReopening = item.mediaId
+        val declared = item.buildUpon().setUri(reopened).setMimeType(mime).build()
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { AudioCache.discard(uri) }
+                withContext(Dispatchers.Main) {
+                    if (phase != Phase.ARMING || incoming !== into) return@withContext
+                    if (into.currentMediaItem?.mediaId != item.mediaId) return@withContext
+                    val index = into.currentMediaItemIndex
+                    into.replaceMediaItem(index, declared)
+                    into.seekTo(index, incomingCueTimeMs)
+                    into.prepare()
+                    armDeadline = SystemClock.elapsedRealtime() + ARM_TIMEOUT_MS
+                }
+            } finally {
+                manifestReopening = null
+            }
+        }
+        return true
     }
 
     /**
