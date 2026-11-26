@@ -1,5 +1,6 @@
 package com.music.zenith.ui.screens
 
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -10,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.music.zenith.ui.components.LocalCoverVisibilityScope
 import com.music.zenith.ui.components.coverFlightPending
 import com.music.zenith.ui.components.enterReveal
 
@@ -28,7 +30,10 @@ internal fun Modifier.flightReveal(
 ): Modifier {
     val base = this.enterReveal(delayMs, rise)
     if (!afterFlight) return base
-    val flying = coverFlightPending()
+    // Halaman yang sedang ditinggalkan tidak ikut disembunyikan oleh
+    // penerbangan menuju halaman berikutnya.
+    val leaving = LocalCoverVisibilityScope.current?.transition?.targetState == EnterExitState.PostExit
+    val flying = !leaving && coverFlightPending()
     val landed by animateFloatAsState(
         targetValue = if (flying) 0f else 1f,
         animationSpec = if (flying) {

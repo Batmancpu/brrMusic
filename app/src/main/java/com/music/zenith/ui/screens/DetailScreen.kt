@@ -428,6 +428,10 @@ fun DetailScreen(
         if (page.type == BrowseType.ALBUM) rawSongs.popularTrackIds() else emptySet()
     }
     val isArtist = page.type == BrowseType.ARTIST
+    // Hero full-bleed menjulur ke bawah teks, jadi cover terbang menutupi teks
+    // di sana. Teks di halaman seperti ini menunggu cover mendarat.
+    val textAfterFlight = page.isAlbumHero() || page.isMixHero() || page.isLikedMusic() ||
+        page.covers.isNotEmpty() || page.isFolderCover()
     // Whether the top release card's album is already saved isn't on the shelf
     // item; it is read off the album once, as soon as the card is known.
     val topReleaseId = if (isArtist) page.sections.topRelease()?.browseId else null
@@ -783,7 +787,17 @@ fun DetailScreen(
                 if (!showAbout) return
                 item(key = "about") {
                     // Clear of the last shelf above it.
-                    Box(Modifier.padding(top = if (isArtist) 28.dp else 0.dp)) {
+                    Box(
+                        Modifier
+                            .padding(top = if (isArtist) 28.dp else 0.dp)
+                            .then(
+                                if (isArtist) {
+                                    Modifier
+                                } else {
+                                    Modifier.flightReveal(320, afterFlight = textAfterFlight)
+                                },
+                            ),
+                    ) {
                     AboutSection(
                         title = stringResource(
                             if (isArtist) R.string.about_artist else R.string.about_album,
@@ -896,7 +910,12 @@ fun DetailScreen(
                     ) { position, entry ->
                         // The first rows arrive one after another; later ones, composed
                         // while scrolling, are already visible and draw as they are.
-                        Column(Modifier.enterReveal(340 + position.coerceAtMost(8) * 30)) {
+                        Column(
+                            Modifier.flightReveal(
+                                delayMs = 340 + position.coerceAtMost(8) * 30,
+                                afterFlight = textAfterFlight,
+                            ),
+                        ) {
                         val song = entry.value
                         val isCurrent = isCurrentRow(song)
                         SongRow(
@@ -945,13 +964,21 @@ fun DetailScreen(
                 val albumSongs = (page.songs as? UiState.Success)?.data.orEmpty()
                 if (albumSongs.isNotEmpty()) {
                     item(key = "album-info") {
-                        AlbumInfoFooter(
-                            releaseDate = albumInfo?.releaseDateText(),
-                            year = RELEASE_YEAR.find(page.subtitle)?.value,
-                            copyright = albumInfo?.copyright,
-                            songs = albumSongs,
-                            palette = palette,
-                        )
+                        // Menyusul baris lagu terakhir, tidak mendahuluinya.
+                        Box(
+                            Modifier.flightReveal(
+                                delayMs = 370 + matches.size.coerceAtMost(8) * 30,
+                                afterFlight = textAfterFlight,
+                            ),
+                        ) {
+                            AlbumInfoFooter(
+                                releaseDate = albumInfo?.releaseDateText(),
+                                year = RELEASE_YEAR.find(page.subtitle)?.value,
+                                copyright = albumInfo?.copyright,
+                                songs = albumSongs,
+                                palette = palette,
+                            )
+                        }
                     }
                 }
             }
@@ -1268,7 +1295,7 @@ private fun ReleaseHeader(
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.flightReveal(150, afterFlight = page.covers.isNotEmpty()).padding(horizontal = HEADER_GUTTER),
+            modifier = Modifier.flightReveal(150, afterFlight = fullBleed).padding(horizontal = HEADER_GUTTER),
         )
         if (credit.isNotBlank()) {
             Spacer(Modifier.height(2.dp))
@@ -1283,7 +1310,7 @@ private fun ReleaseHeader(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .flightReveal(200, afterFlight = page.covers.isNotEmpty())
+                    .flightReveal(200, afterFlight = fullBleed)
                     .padding(horizontal = HEADER_GUTTER)
                     .let { m ->
                         val id = artist?.artistId
@@ -1299,7 +1326,7 @@ private fun ReleaseHeader(
         if (meta.isNotBlank() || albumQualityShown != null) {
             Spacer(Modifier.height(4.dp))
             Row(
-                modifier = Modifier.flightReveal(240, afterFlight = page.covers.isNotEmpty()).padding(horizontal = HEADER_GUTTER),
+                modifier = Modifier.flightReveal(240, afterFlight = fullBleed).padding(horizontal = HEADER_GUTTER),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1344,7 +1371,7 @@ private fun ReleaseHeader(
             Spacer(Modifier.height(18.dp))
             Row(
                 modifier = Modifier
-                    .flightReveal(290, afterFlight = page.covers.isNotEmpty())
+                    .flightReveal(290, afterFlight = fullBleed)
                     .widthIn(max = RELEASE_ACTIONS_MAX_WIDTH)
                     .fillMaxWidth()
                     .padding(horizontal = HEADER_GUTTER),
@@ -1454,7 +1481,7 @@ private fun ReleaseHeader(
                 filled = songs.isEmpty(),
                 size = RELEASE_SIDE_BUTTON,
                 modifier = Modifier
-                    .flightReveal(290, afterFlight = page.covers.isNotEmpty())
+                    .flightReveal(290, afterFlight = fullBleed)
                     .widthIn(max = RELEASE_ACTIONS_MAX_WIDTH)
                     .fillMaxWidth()
                     .padding(horizontal = HEADER_GUTTER),
