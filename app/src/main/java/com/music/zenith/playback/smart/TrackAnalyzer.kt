@@ -256,6 +256,16 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
      */
     fun analysisFor(trackId: String): TrackAnalysis = results[trackId] ?: TrackAnalysis(trackId = trackId)
 
+    /**
+     * Salinan YouTube selalu boleh. Salinan playback (`#alt`) hanya jadi cadangan
+     * saat unduhan YouTube gagal; durasinya tetap dicek sebelum dipakai.
+     */
+    private fun usableForAnalysis(uri: Uri, key: String): Boolean {
+        val videoId = uri.getQueryParameter("v")
+        if (AutomixAnalysisSource.isCanonicalYouTubeRendition(videoId, key)) return true
+        return videoId != null && key.startsWith("$videoId#alt") && cache.analysisDownloadFailed(videoId)
+    }
+
     private val lastNotes = ConcurrentHashMap<String, String>()
 
     /** Mencatat ke Copy Log hanya saat alasannya berubah, supaya tidak tiap tick. */
@@ -377,7 +387,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             emptyList()
         } else {
             cache.renditionsOf(analysisUri)
-                .filter { AutomixAnalysisSource.isCanonicalYouTubeRendition(analysisUri.getQueryParameter("v"), it.key) }
+                .filter { usableForAnalysis(analysisUri, it.key) }
                 .filter { it.isComplete && it.key !in badRenditions }
         }
         val usableComplete = local || complete.isNotEmpty()
@@ -584,7 +594,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         // minutes earlier reported zero here, because the question was being
         // asked of the wrong copy of it.
         val candidate = cache.renditionsOf(uri)
-            .filter { AutomixAnalysisSource.isCanonicalYouTubeRendition(uri.getQueryParameter("v"), it.key) }
+            .filter { usableForAnalysis(uri, it.key) }
             .filter { it.cachedPrefix > 0L && it.key !in badRenditions }
             // The growth guard, applied as a filter rather than to the winner.
             // Applied afterwards it did not skip a copy, it ended the search: the
@@ -803,7 +813,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         durationSeconds: Double,
     ): AudioCache.Rendition? {
         val complete = cache.renditionsOf(uri)
-            .filter { AutomixAnalysisSource.isCanonicalYouTubeRendition(uri.getQueryParameter("v"), it.key) }
+            .filter { usableForAnalysis(uri, it.key) }
             .filter { it.isComplete && it.key !in badRenditions }
         if (complete.isEmpty()) return null
 
@@ -924,7 +934,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         if (LocalAudioSource.isLocal(uri)) return null
         val expected = durationSeconds.takeIf { it.isFinite() && it > 0 } ?: return null
         val rendition = cache.renditionsOf(uri)
-            .filter { AutomixAnalysisSource.isCanonicalYouTubeRendition(uri.getQueryParameter("v"), it.key) }
+            .filter { usableForAnalysis(uri, it.key) }
             .filter { it.contentLength > 0 && it.key !in badRenditions }
             .filter { headSecondsOf(it, durationSeconds) >= untilSeconds + LOOP_PARTIAL_MARGIN_SECONDS }
             .maxByOrNull { headSecondsOf(it, durationSeconds) }

@@ -1628,7 +1628,8 @@ object AudioCache {
             // Cek dan tulis harus di key yang sama dengan playback (mis. `#alt`),
             // bukan di key polos milik salinan Opus untuk analisis Automix.
             val uri = Uri.parse("zenith://watch?v=$id")
-            fetch(cacheKeyOf(uri), uri, 0, PRELOAD_BYTES, pinKey = true)
+            val length = if (analysisDownloadFailed(id)) FALLBACK_PRELOAD_BYTES else PRELOAD_BYTES
+            fetch(cacheKeyOf(uri), uri, 0, length, pinKey = true)
         }
     }
 
@@ -2126,6 +2127,12 @@ object AudioCache {
         val cached = cache.getCachedLength(videoId, 0, want).coerceAtLeast(0L)
         return cached >= minOf(want, MIN_ALIGNMENT_PREFIX_BYTES)
     }
+
+    /** True setelah minimal satu unduhan salinan analisis YouTube gagal. */
+    fun analysisDownloadFailed(videoId: String): Boolean = (analysisHeadFailures[videoId] ?: 0) > 0
+
+    /** Awal lagu lossless harus cukup panjang untuk dianalisis saat salinan YouTube gagal. */
+    private const val FALLBACK_PRELOAD_BYTES = 16L * 1024 * 1024
 
     private fun analysisHeadSize(total: Long): Long =
         if (total > 0) minOf(total, MAX_ANALYSIS_TRACK_BYTES) else MAX_ANALYSIS_HEAD_BYTES
