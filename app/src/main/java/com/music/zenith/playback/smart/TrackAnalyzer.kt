@@ -263,7 +263,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
     private fun usableForAnalysis(uri: Uri, key: String): Boolean {
         val videoId = uri.getQueryParameter("v")
         if (AutomixAnalysisSource.isCanonicalYouTubeRendition(videoId, key)) return true
-        return videoId != null && key.startsWith("$videoId#alt") && cache.analysisDownloadFailed(videoId)
+        // Termasuk `#hifi` hasil upgrade, bukan hanya `#alt`.
+        return videoId != null && key.startsWith("$videoId#") && cache.analysisDownloadFailed(videoId)
     }
 
     private val lastNotes = ConcurrentHashMap<String, String>()
