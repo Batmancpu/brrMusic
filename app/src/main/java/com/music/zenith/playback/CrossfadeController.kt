@@ -2954,6 +2954,22 @@ class CrossfadeController(
         if (AppSettings.automixDetail.value != text) AppSettings.automixDetail.value = text
     }
 
+    /** The planner's reason codes in words, for the stats line. */
+    private fun readablePolicyReasons(codes: List<String>): String {
+        val words = codes.map { code ->
+            when (code) {
+                "outgoing-tempo" -> "this song has no usable tempo"
+                "incoming-tempo" -> "next song has no usable tempo yet"
+                "tempo-distance" -> "tempos too far apart"
+                "beat-confidence" -> "beat grid not trusted"
+                "unmixable-pair" -> "key or vocal clash"
+                "quiet-ending-shorter-fade" -> "quiet ending, shorter fade"
+                else -> code
+            }
+        }.distinct()
+        return if (words.isEmpty()) "" else " · " + words.joinToString(", ")
+    }
+
     private fun describeAutomix(player: ExoPlayer, item: MediaItem): String {
         val session = loopSession
         if (session != null) {
@@ -2981,7 +2997,7 @@ class CrossfadeController(
             val whenText = if (inSeconds > 0) "in ${ceil(inSeconds).toInt()} s" else "now"
             val bars = if (plan.beatSeconds > 0) (plan.fadeSeconds / (4 * plan.beatSeconds)).roundToInt() else 0
             val length = if (bars > 0) "$bars bars" else "${"%.1f".format(Locale.ROOT, plan.fadeSeconds)} s"
-            val why = plan.policyReasons.firstOrNull()?.let { " · $it" }.orEmpty()
+            val why = readablePolicyReasons(plan.policyReasons)
             val noLoop = loopRefusal?.let { " · no loop: $it" }.orEmpty()
             return when (plan.transitionStyle) {
                 TransitionStyle.EQUAL_POWER -> "Automix · crossfading $whenText · ${"%.0f".format(Locale.ROOT, plan.fadeSeconds)} s$why$noLoop"

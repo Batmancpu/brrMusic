@@ -356,7 +356,16 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         return when {
             raw == null -> null
             raw.startsWith("no YouTube copy") -> "no YouTube copy to analyse"
-            raw.startsWith("waiting for audio") -> "waiting for audio to download"
+            raw.startsWith("waiting for audio") -> {
+                val best = Regex(":(\\d+)/(\\d+)").findAll(raw)
+                    .map { it.groupValues[1].toLong() to it.groupValues[2].toLong() }
+                    .maxByOrNull { it.first }
+                when {
+                    best == null || best.first <= 0L -> "waiting for audio to download"
+                    best.second > 0L -> "audio ${best.first * 100 / best.second}% downloaded"
+                    else -> "audio ${best.first / 1024} kB downloaded so far"
+                }
+            }
             else -> null
         }
     }
@@ -1023,10 +1032,10 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         // YouTube search and its Opus on the network under a track whose whole
         // point is not being YouTube. Left unmeasured, as a party leaves every
         // track — see [SourceResolver.MIX_PARAM].
-        if (SourceResolver.isPickedAddonRow(playbackUri)) return null
+        if (SourceResolver.isPickedAddonRow(playbackUri)) return ownCompleteCopy(playbackUri)
         sourceAnalysisUris[trackId]?.let { return it }
-        if (trackId in sourceResolutionAttempted) return null
-        if (!sourceResolutions.add(trackId)) return null
+        if (trackId in sourceResolutionAttempted) return ownCompleteCopy(playbackUri)
+        if (!sourceResolutions.add(trackId)) return ownCompleteCopy(playbackUri)
         val target = SourceResolver.targetIn(playbackUri)
         sourceResolutionScope.launch {
             try {
@@ -1044,8 +1053,20 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 sourceResolutions.remove(trackId)
             }
         }
-        return null
+        return ownCompleteCopy(playbackUri)
     }
+
+    /**
+     * [uri] itself, when the copy the player already cached under it is whole.
+     *
+     * A track with no YouTube twin to analyse — an addon row, or one nothing
+     * matched yet — was left unmeasured however much of it was on disk. A
+     * complete copy costs no network to read, and the duration check in
+     * [chooseRendition] still guards against a different cut. Anything partial
+     * is left alone: there is no head fetch for a source's own entry.
+     */
+    private fun ownCompleteCopy(uri: Uri): Uri? =
+        uri.takeIf { cache.renditionsOf(it).any { r -> r.isComplete && r.key !in badRenditions } }
 
     private suspend fun findYouTubeMatch(target: TrackMatcher.Target): com.music.zenith.data.model.Song? {
         if (target.title.isBlank()) return null
