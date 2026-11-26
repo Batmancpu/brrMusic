@@ -404,6 +404,9 @@ class CrossfadeController(
     /** The last incoming row [begin] declined for [incomingAudioPending], so it logs once per row. */
     private var pendingAudioLoggedId: String? = null
 
+    /** The outgoing sink's filter was moved during arming, so it must be opened again if the standby stops being ready. */
+    private var armOutgoingFiltered = false
+
     /** Decoding the mix popup's waveforms for the blend in flight. */
     private var mixViewJob: Job? = null
 
@@ -899,6 +902,12 @@ class CrossfadeController(
         val left = duration - out.currentPosition
         val fade = minOf(skipFadeMs(), left / 2, duration / 3)
         if (fade < SKIP_FADE_MIN_MS) return false
+        // Direct Source Stream holds every track outside its window at the resolver,
+        // so the standby would park on the skip target and never become ready.
+        // Open the window on it before the standby starts loading.
+        if (DirectSourceGate.isActive() && target in 0 until out.mediaItemCount) {
+            DirectSourceGate.openNext(out.getMediaItemAt(target).mediaId)
+        }
         if (!begin(fade = fade, endMs = out.currentPosition + fade, smart = false, targetIndex = target)) {
             return false
         }
@@ -1237,6 +1246,24 @@ class CrossfadeController(
         val loop = loopPlanFor(
             player, currentItem, nextItem, currentAnalysis, nextAnalysis, duration, nextDuration, analysisState,
         )
+        if (loop != null && !markerOnly && !nextStreamReady(nextItem)) {
+            // The next track's bytes are only fetched once DirectSourceGate's
+            // window opens, and that window is measured from plannedTransition.
+            // Leaving it unset until the stream is ready deadlocks the two:
+            // the window then falls back to the file end, past the loop start.
+            plannedTransition = currentItem.mediaId to (loop.out.loopStart * 1000).roundToLong()
+        }
+        // The loop's marker is shown as soon as the loop is planned, so it
+        // does not wait on the next track's bytes and does not move once they land.
+        var loopMarked = false
+        if (loop != null && !nextStreamReady(nextItem)) {
+            val pendingLoopStartMs = (loop.out.loopStart * 1000).roundToLong()
+            AppSettings.smartTransitionWindow.value = TransitionWindow(
+                start = (pendingLoopStartMs.toFloat() / duration).coerceIn(0f, 1f),
+                end = 1f,
+            )
+            loopMarked = true
+        }
         if (loop != null && nextStreamReady(nextItem)) {
             val loopStartMs = (loop.out.loopStart * 1000).roundToLong()
             AppSettings.smartTransitionWindow.value = TransitionWindow(
@@ -1282,9 +1309,7 @@ class CrossfadeController(
             plan.markerVisible &&
             duration > 0L &&
             analysisState.current == TrackAnalysisState.ANALYSED &&
-            analysisState.next in MEASURED_ENOUGH_TO_ENTER_ON &&
-            // Last, because it is the only one that can read the cache.
-            nextStreamReady(nextItem)
+            analysisState.next in MEASURED_ENOUGH_TO_ENTER_ON
         val markerVerdict = when {
             markable -> "shown"
             plan.blocked -> "hidden: plan blocked (${plan.reason})"
@@ -1302,13 +1327,15 @@ class CrossfadeController(
                     "${nextItem.mediaId} \"${nextItem.mediaMetadata.title}\": $markerVerdict",
             )
         }
-        AppSettings.smartTransitionWindow.value = if (markable) {
-            TransitionWindow(
-                start = (plan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
-                end = (plan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
-            )
-        } else {
-            null
+        if (!loopMarked) {
+            AppSettings.smartTransitionWindow.value = if (markable) {
+                TransitionWindow(
+                    start = (plan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+                    end = (plan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+                )
+            } else {
+                null
+            }
         }
 
         if (plan.blocked || markerOnly) return
@@ -1317,7 +1344,10 @@ class CrossfadeController(
         if (fade <= 0L) return
 
         val transitionStartMs = (plan.transitionStart * 1000).roundToLong()
-        plannedTransition = currentItem.mediaId to transitionStartMs
+        // Keep an earlier loop start planned this tick, so the gate window
+        // opens for whichever mix comes first.
+        val earlierPlannedMs = plannedTransition?.takeIf { it.first == currentItem.mediaId }?.second
+        plannedTransition = currentItem.mediaId to minOf(transitionStartMs, earlierPlannedMs ?: transitionStartMs)
         val remaining = transitionStartMs - player.currentPosition
         if (remaining <= MIX_PREFETCH_MS && currentAnalysis.isUsable && nextAnalysis.isUsable) {
             prefetchMixWaves(
@@ -1540,6 +1570,7 @@ class CrossfadeController(
             }
         }
         pendingAudioLoggedId = null
+        armOutgoingFiltered = false
         // The last blend's stretch, if it is somehow still easing off: this
         // player is about to be the outgoing side of a new one.
         endEase(clickless = false)
@@ -1754,13 +1785,26 @@ class CrossfadeController(
         // fade starts — otherwise the incoming track's first seconds are heard
         // unfiltered. The outgoing sink crosses into the blend its lead before
         // the listener does, and its filter has to start moving then.
-        val outgoingAt = if (fadeMs > 0L && fadeEndMs > 0L) {
+        // Standby belum READY (mis. lossless masih buffering): blend belum pasti
+        // terjadi, jadi filter dan tempo outgoing tidak boleh disentuh. Kalau
+        // tidak, lagu 1 meredam/rusak untuk transisi yang lagu 2-nya tidak masuk.
+        val outgoingAt = if (ready && fadeMs > 0L && fadeEndMs > 0L) {
             (out.currentPosition + tracks.outgoingLeadMs() - (fadeEndMs - fadeMs)).toFloat() / fadeMs
         } else {
             0f
         }
-        rideFilters(0f, outgoingAt.takeIf { it > 0f }?.coerceAtMost(1f))
-        if (rampSteps > 0) rampOutgoing(out)
+        if (outgoingAt > 0f) {
+            armOutgoingFiltered = true
+            rideFilters(0f, outgoingAt.coerceAtMost(1f))
+        } else {
+            rideFilters(0f, null)
+            if (armOutgoingFiltered) {
+                // Standby sempat siap lalu buffering lagi: buka filter outgoing.
+                armOutgoingFiltered = false
+                tracks.outgoing(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
+            }
+        }
+        if (rampSteps > 0 && ready) rampOutgoing(out)
 
         // Wait for the track to actually reach the fade point. [fadeEndMs] is
         // the track's own duration in standard mode, or a Automix plan's
@@ -4102,7 +4146,7 @@ class CrossfadeController(
          * not resolved until it is about to play and an addon lookup takes
          * seconds. The outgoing track keeps playing while this runs.
          */
-        const val DIRECT_SKIP_ARM_TIMEOUT_MS = 4_000L
+        const val DIRECT_SKIP_ARM_TIMEOUT_MS = 8_000L
 
         /**
          * Where the outgoing low-pass sits the instant a filter ride begins.

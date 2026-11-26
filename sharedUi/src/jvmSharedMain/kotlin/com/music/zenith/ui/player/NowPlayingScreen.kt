@@ -54,6 +54,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -286,6 +288,13 @@ private const val QUEUE_FLICK_VELOCITY = 450f
 private val DISMISS_STRIP_HEIGHT = 32.dp
 /** The breathing room above the sleeve, needed twice: once to apply, once to measure past. */
 private val ART_BOX_TOP_PAD = 8.dp
+/**
+ * Most of the system navigation bar the player gives up as layout height. A gesture
+ * bar fits inside it; a three-button bar is taller, and subtracting all of it shrank
+ * the artwork, which is bound by the height left over. The remainder is drawn under
+ * the (transparent) bar instead.
+ */
+private val NAV_BAR_LAYOUT_CAP = 24.dp
 /**
  * Share of the motion-artwork banner's height given over to its dissolve.
  *
@@ -569,6 +578,15 @@ private const val DOCK_FADE_FULL = 0.45f
 
 /** The least the faded player is drawn at while docking — see the player's fade. */
 private const val DOCK_FADE_FLOOR = 1f / 255f
+
+/**
+ * Deck bawah Spotify Canvas (bar progres, lirik, kontrol) sudah solid penuh di
+ * [DOCK_DECK_GONE] + [DOCK_DECK_SOLID_SPAN] dan hilang total di [DOCK_DECK_GONE].
+ * Tepi bawah panel yang naik saat menutup memotongnya sebelum fade player mulai,
+ * jadi deck dipudarkan lebih awal daripada bagian player lainnya.
+ */
+private const val DOCK_DECK_GONE = 0.78f
+private const val DOCK_DECK_SOLID_SPAN = 0.2f
 
 /** Lama clip animasi cover (Apple/Spotify) padam ke thumbnail saat mix/crossfade mulai, dan kembali setelahnya. */
 private const val CLIP_MIX_FADE_OUT_MS = 900
@@ -1771,6 +1789,8 @@ fun NowPlayingScreen(
     // tanpa dukungan video kini ikut pengaturan full-bleed seperti lagu biasa.
     val fullBleedArt = fullBleedSetting && !(videoMode && canvas == null)
     SideEffect { CanvasFadeTuning.fullBleed.value = fullBleedArt }
+    // Canvas Zenith punya set setelan fade dan kontrol sendiri.
+    SideEffect { CanvasFadeTuning.selectScope(canvas?.source == CanvasSource.ZENITH) }
     // Full-bleed is a phone idiom. What the width has to rule out is a player
     // running a foot wider than the column of controls under it — edge to edge
     // meaning "a picture, and separately some controls" rather than "the
@@ -1977,6 +1997,7 @@ fun NowPlayingScreen(
     // A full-screen Spotify Canvas that stays up, blurred live, behind the lyrics
     // and queue. Only where it can be drawn (Android 12+, dynamic blur not reduced).
     val canvasLiveBlur by PlayerSettings.canvasLiveBlurPanels.collectAsStateWithLifecycle()
+    val panelDefaultBackdrop by PlayerSettings.canvasPanelDefaultBackdrop.collectAsStateWithLifecycle()
     val liveBlurReduced by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     // Frost host is null when dynamic blur is reduced or the platform cannot blur live (below Android 12).
     val frost = if (liveBlurReduced) null else PlayerPlatform.host.rememberPlayerFrost()
@@ -2437,6 +2458,16 @@ fun NowPlayingScreen(
     // The rest of the player gets out of the way a little ahead of the artwork,
     // so the cover lands on the bar rather than on a ghost of the player.
     val dockFade: () -> Float = { ((dockT() - DOCK_FADE_LEAD) / (DOCK_FADE_FULL - DOCK_FADE_LEAD)).coerceIn(0f, 1f) }
+    // Deck Spotify Canvas memudar lebih awal saat player menutup, supaya bar progres
+    // dan lirik tidak terpotong keras oleh tepi bawah panel selagi masih solid.
+    // Dibaca di graphicsLayer (draw phase), jadi tidak recompose per frame.
+    val deckDockFade: () -> Float = {
+        if (!spotifyCanvasPresentation) {
+            1f
+        } else {
+            ((dockT() - DOCK_DECK_GONE) / DOCK_DECK_SOLID_SPAN).coerceIn(0f, 1f)
+        }
+    }
 
     // The clip's own frame, standing in for it while the sleeve moves — so
     // opening, closing, and collapsing into the lyrics or the queue carry
@@ -2942,9 +2973,9 @@ fun NowPlayingScreen(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
-                                    // Faded with the player rather than flown with
-                                    // the sleeve: the cover in the bar has none.
-                                    .graphicsLayer { alpha = if (panelOpen || landscapeFullBleed) 0f else dockFade() },
+                                    // Tampil hanya setelah cover mendarat: selama terbang,
+                                    // cover digambar di atas semuanya dan menutupi teks ini.
+                                    .graphicsLayer { alpha = if (panelOpen || landscapeFullBleed) 0f else headerReveal.value },
                             )
                         }
                     },
@@ -3188,8 +3219,19 @@ fun NowPlayingScreen(
                     canvas?.source == CanvasSource.SPOTIFY && !liveCanvasPanels
                 // Blur frame ditahan utuh selama panel terbuka dan selama collapse
                 // (masuk maupun keluar), tepat di bawah klip yang melebur.
-                val spotifyFrameHold = spotifyFrameOnly && (canvasPanelMesh || collapseStarted) &&
+                // Opsi backdrop default: alas panel adalah mesh legacy / blur cover,
+                // bukan blur frame beku klip. Klip tetap melebur ke sana.
+                val spotifyDefaultBackdrop = spotifyFrameOnly && panelDefaultBackdrop
+                val panelBackdropReady = if (spotifyDefaultBackdrop) {
+                    legacyMesh || fullArtworkBlurImage != null
+                } else {
                     canvasPanelFrameBlur != null
+                }
+                val spotifyFrameHold = spotifyFrameOnly && !spotifyDefaultBackdrop &&
+                    (canvasPanelMesh || collapseStarted) && canvasPanelFrameBlur != null
+                // Selama collapse masuk/keluar, backdrop default ditahan di bawah klip
+                // yang melebur, seperti blur frame beku ditahan.
+                val spotifyDefaultHold = spotifyDefaultBackdrop && collapseStarted
                 val canvasMeshAlpha by animateFloatAsState(
                     targetValue = if (spotifyFrameOnly) {
                         if (spotifyFrameHold) 1f else 0f
@@ -3210,7 +3252,7 @@ fun NowPlayingScreen(
                 // membuat klip hilang mendadak). Saat panel menutup, p() yang memimpin.
                 val spotifyFrameHandoff by animateFloatAsState(
                     targetValue = if (
-                        spotifyFrameOnly && (lyricsOpen || queueOpen) && canvasPanelFrameBlur != null
+                        spotifyFrameOnly && (lyricsOpen || queueOpen) && panelBackdropReady
                     ) 0f else 1f,
                     animationSpec = if (spotifyFrameOnly && (lyricsOpen || queueOpen)) {
                         tween(durationMillis = 240, easing = FastOutSlowInEasing)
@@ -3223,19 +3265,19 @@ fun NowPlayingScreen(
                     canvas?.source == CanvasSource.SPOTIFY && !liveCanvasPanels &&
                     (lyricsOpen || queueOpen)
                 val legacyMeshBackdrop = !tabletArtworkBackdrop &&
-                    (!spotifyCanvasPresentation || spotifyDefaultPanels) &&
+                    (!spotifyCanvasPresentation || spotifyDefaultPanels || spotifyDefaultHold) &&
                     legacyMesh && !canvasPanelMesh
                 val fullArtworkBackdropAlpha by animateFloatAsState(
                     targetValue = if (
                         !legacyMeshBackdrop && !canvasPanelMesh && !spotifyFrameHold &&
                         (tabletArtworkBackdrop || fullArtworkBlurImage != null) &&
-                        (!spotifyCanvasPresentation || lyricsOpen || queueOpen ||
+                        (!spotifyCanvasPresentation || lyricsOpen || queueOpen || spotifyDefaultHold ||
                             mixing || crossfading || clipDimmed || dissolve.fullFrame != null)
                     ) 1f else 0f,
                     // Selagi frame canvas menutup layar, backdrop sudah harus utuh di
                     // bawahnya; kalau masih naik pelan, bagian bawah terlihat gelap
                     // lalu terang saat frame memudar.
-                    animationSpec = if (dissolve.fullFrame != null || spotifyDefaultPanels) {
+                    animationSpec = if (dissolve.fullFrame != null || spotifyDefaultPanels || spotifyDefaultHold) {
                         snap()
                     } else {
                         tween(durationMillis = 360, easing = FastOutSlowInEasing)
@@ -3292,7 +3334,7 @@ fun NowPlayingScreen(
                 }
                 if (canvasMeshAlpha > 0.001f) {
                     FullArtworkBlurBackdrop(
-                        image = if (spotifyFrameOnly) canvasPanelFrameBlur
+                        image = if (spotifyFrameOnly && !spotifyDefaultBackdrop) canvasPanelFrameBlur
                             else canvasPanelFrameBlur ?: fullArtworkBlurImage,
                         modifier = Modifier.graphicsLayer { alpha = canvasMeshAlpha },
                     )
@@ -3710,13 +3752,9 @@ fun NowPlayingScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(
-                                // Flat, too, while a drawer or the ⋯ menu is up: those
-                                // blur the playing Canvas live themselves, and the
-                                // deck's glass under them would be a second live blur
-                                // of the same video for a deck nobody can see.
-                                if (reduceDynamicBlur || !renderEffectBlurSupported ||
-                                    (overlayOpen.value && !qualityDetail.open)
-                                ) {
+                                // The deck's glass stays live while a drawer, popup or the
+                                // ⋯ menu is up, so the blur behind the controls never drops.
+                                if (reduceDynamicBlur || !renderEffectBlurSupported) {
                                     // A real backdrop RenderEffect is unavailable on
                                     // older Android versions and intentionally skipped
                                     // when dynamic blur is reduced. Retain the deck's
@@ -3828,7 +3866,11 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(stableStatusBarInsets())
-                        .navigationBarsPadding()
+                        .padding(
+                            bottom = WindowInsets.navigationBars.asPaddingValues()
+                                .calculateBottomPadding()
+                                .coerceAtMost(NAV_BAR_LAYOUT_CAP),
+                        )
                         // Observe unclaimed taps across the whole Canvas. Buttons and
                         // the compact metadata row consume their own taps first; empty
                         // video above or below them toggles the lower deck either way.
@@ -3980,7 +4022,7 @@ fun NowPlayingScreen(
                             // half second lying across a list the finger was already
                             // scrolling.
                             .onGloballyPositioned { dismissBandSpace = it }
-                            .pointerInput(showAudioPipeline, showCast, panelScrolling) {
+                            .pointerInput(showAudioPipeline, showCast, panelScrolling, spotifyCanvasPresentation) {
                                 if (showAudioPipeline || showCast || panelScrolling) return@pointerInput
                                 awaitEachGesture {
                                     // Unconsumed on purpose, as the blanket version was:
@@ -3996,6 +4038,10 @@ fun NowPlayingScreen(
                                     // never mind where the sleeve is in between.
                                     val panelUp = queueOpen || lyricsOpen ||
                                         queueSlide.floatValue > 0.01f
+                                    // Canvas with its deck hidden: the queue cannot be
+                                    // dragged in until the player is shown again.
+                                    val canvasHidden = spotifyCanvasPresentation &&
+                                        !spotifyCanvasControlsOpen && !panelUp
                                     val bandTop: Float
                                     val bandBottom: Float
                                     if (panelUp) {
@@ -4007,7 +4053,7 @@ fun NowPlayingScreen(
                                         bandBottom = dismissBandBottom
                                     }
                                     if (y >= bandTop && y <= bandBottom) {
-                                        if (!panelUp) {
+                                        if (!panelUp && !canvasHidden) {
                                             dragQueueIn(
                                                 down = down,
                                                 travel = bandBottom - bandTop -
@@ -5292,9 +5338,9 @@ fun NowPlayingScreen(
                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                         .graphicsLayer {
                                             // Tidak tampil selama cover terbang: cover digambar di
-                                            // atas semuanya dan akan menutupi teks ini.
-                                            val dockShown = ((dockT() - 0.85f) / 0.15f).coerceIn(0f, 1f)
-                                            alpha = (1f - p() * 2f) * spotifyChromeAlpha * dockShown
+                                            // atas semuanya dan akan menutupi teks ini. headerReveal
+                                            // baru naik setelah sheet terbuka penuh (cover sudah mendarat).
+                                            alpha = (1f - p() * 2f) * spotifyChromeAlpha * headerReveal.value
                                         },
                                 )
                             }
@@ -5907,7 +5953,7 @@ Spacer(Modifier.width(12.dp))
                                 }
                                 .height(SPOTIFY_MINI_SCRUBBER_HEIGHT)
                                 .padding(bottom = SPOTIFY_MINI_SCRUBBER_LIFT)
-                                .graphicsLayer { alpha = 1f - playerDeckReveal.value },
+                                .graphicsLayer { alpha = (1f - playerDeckReveal.value) * deckDockFade() },
                             contentAlignment = Alignment.BottomCenter,
                         ) {
                             PlayerScrubber(
@@ -5947,6 +5993,7 @@ Spacer(Modifier.width(12.dp))
                             (!queueOpen || queueControlsOpen) &&
                             (!spotifyCanvasPresentation || spotifyCanvasControlsOpen || transitionHold),
                         reveal = playerDeckReveal,
+                        modifier = Modifier.graphicsLayer { alpha = deckDockFade() },
                         // Back to the main player from lyrics or the queue with the
                         // deck stood down: the sleeve is about to come back out, so
                         // the deck has to hold its full height from the first frame.
@@ -5968,7 +6015,10 @@ Spacer(Modifier.width(12.dp))
                     Column(
                         modifier = Modifier
                             .widthIn(max = PLAYER_MAX_WIDTH)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            // Live canvas: popups blur off the haze, not a still,
+                            // so the deck must be a source or it vanishes behind them.
+                            .then(if (liveBackdropOn) Modifier.hazeSource(playerHaze) else Modifier),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                     // Current lyric, one line, directly above the scrubber. It stays in

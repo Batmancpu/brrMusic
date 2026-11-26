@@ -1574,6 +1574,16 @@ class PlaybackService : MediaLibraryService() {
                     .setHttpRequestHeaders(serving.headers)
                     .build()
             }
+            // The entry already holds JioSaavn's own bytes, from a play nothing
+            // in this process remembers (a restart, or an expired
+            // [StreamChoice]). Finished by the same URL, never by a new race.
+            AudioCache.keptJioSaavnUrl(dataSpec.key ?: AudioCache.cacheKeyOf(dataSpec.uri))?.let { kept ->
+                NerdStats.recordSource(videoId, "JioSaavn")
+                StreamChoice.remember(videoId, SourceStream(kept), substituted = true)
+                return@Resolver dataSpec.buildUpon()
+                    .setUri(Uri.parse(kept))
+                    .build()
+            }
             // A track queued from YouTube may be held by a source the user
             // ranked above it — see [SourceResolver.substituteForYouTube] and
             // [raceYouTubeOrModule]. Only worth the extra lookup when
@@ -3676,6 +3686,7 @@ class PlaybackService : MediaLibraryService() {
         // kind the Cached songs folder lists. See [AudioCache.Origin].
         mediaItem?.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
         scheduleForeignCachePurge()
+        fillAddonCopy(mediaItem?.localConfiguration?.uri?.toString())
         mediaItem?.mediaId?.let { id ->
             resolveLocalBitrate(id, mediaItem)
         }
@@ -5036,6 +5047,7 @@ class PlaybackService : MediaLibraryService() {
             player.prepare()
             fadeInAfterSwap(player, priorVolume)
             QualityUpgrade.unshelve(mediaId)
+            fillAddonCopy(landing.uri)
             TrackLog.d("Zenith", "upgraded to ${stream.format.summary} at ${landing.position}ms ($upgradedSourceName)")
             watchUpgrade(mediaId, landing.uri, landing.position, landing.duration, previousFormat)
             if (QualityUpgrade.continueAfterLossySwap(mediaId)) {
@@ -5959,6 +5971,12 @@ class PlaybackService : MediaLibraryService() {
         val recorded = NerdStats.sourceFor(id)
         if (!recorded.isNullOrBlank()) return recorded
 
+        // 6b. Played straight from a kept addon file: nothing resolved, so no
+        // source was recorded, but the cache entry knows whose bytes it holds.
+        if (uri != null && AudioCache.originOf(uri) == AudioCache.Origin.OTHER) {
+            return "Addon"
+        }
+
         // 7. YouTube video ID
         if (id.length == 11 || uri?.getQueryParameter("v") != null) {
             return "YouTube"
@@ -6073,6 +6091,12 @@ class PlaybackService : MediaLibraryService() {
                 Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
             dsd == null && isRawPcm && pcmDataRate != null ->
                 Pair(pcmDataRate, TelemetryProvenance.DERIVED)
+            // A lossless track with no declared format was replayed from cache.
+            // The figure YouTube's resolver picked for the same id (Automix's
+            // analysis read fills it) describes a different, lossy stream.
+            isLossless && NerdStats.declaredFormat(mediaId) == null ->
+                measuredStreamKbps(player)?.let { Pair(it, TelemetryProvenance.MEASURED) }
+                    ?: Pair(null, TelemetryProvenance.UNKNOWN)
             else ->
                 NerdStats.sourceBitrate(mediaId) { measuredStreamKbps(player) }
                     ?: Pair(null, TelemetryProvenance.UNKNOWN)
@@ -6383,6 +6407,18 @@ class PlaybackService : MediaLibraryService() {
         MediaWidget.refresh(this)
     }
 
+    private var addonFillJob: Job? = null
+
+    private fun fillAddonCopy(uriString: String?) {
+        addonFillJob?.cancel()
+        val uri = uriString?.let(Uri::parse) ?: return
+        addonFillJob = scope.launch {
+            delay(ADDON_FILL_DELAY_MS)
+            if (AudioCache.originOf(uri) != AudioCache.Origin.OTHER) return@launch
+            AudioCache.fillWhole(uri)
+        }
+    }
+
     private var foreignCachePurgeJob: Job? = null
 
     /**
@@ -6634,7 +6670,12 @@ class PlaybackService : MediaLibraryService() {
         val boundary = crossfade?.plannedTransitionFor(current.mediaId) ?: duration
         val speed = exoPlayer.playbackParameters.speed.coerceAtLeast(MIN_WINDOW_SPEED)
         val remaining = ((boundary - exoPlayer.currentPosition) / speed).toLong()
-        if (remaining > DirectSourceGate.WINDOW_MS) return
+        val window = if (AppSettings.smartFadeEnabled.value) {
+            DirectSourceGate.AUTOMIX_WINDOW_MS
+        } else {
+            DirectSourceGate.WINDOW_MS
+        }
+        if (remaining > window) return
         if (!DirectSourceGate.openNext(next.mediaId)) return
         TrackLog.d(
             "Zenith",
@@ -9570,6 +9611,7 @@ class PlaybackService : MediaLibraryService() {
         const val MEDIA_LIKED_ID = "liked"
         /** See [scheduleForeignCachePurge]: comfortably past the longest crossfade. */
         const val FOREIGN_CACHE_PURGE_DELAY_MS = 30_000L
+        const val ADDON_FILL_DELAY_MS = 6_000L
         /** How many upcoming tracks [scheduleForeignCachePurge] leaves alone for read-ahead and Automix. */
         const val FOREIGN_CACHE_KEEP_AHEAD = 3
         const val MEDIA_DOWNLOADS_ID = "downloads"

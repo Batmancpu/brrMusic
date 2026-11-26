@@ -136,15 +136,73 @@ object CanvasFadeTuning {
     /** Pengali kekuatan blur klip. */
     val blurScale = mutableFloatStateOf(DEFAULT_BLUR_SCALE)
 
+    /** Satu set nilai fade. Dua set disimpan: canvas Zenith dan canvas lain. */
+    private data class FadeValues(
+        val height: Float,
+        val curve: Float,
+        val power: Float,
+        val offset: Float,
+        val heightFull: Float,
+        val offsetFull: Float,
+        val curveExp: Float,
+        val blur: Float,
+    )
+
+    private val OTHER_DEFAULTS = FadeValues(
+        DEFAULT_HEIGHT_SCALE, DEFAULT_CURVE, DEFAULT_POWER, DEFAULT_OFFSET_DP,
+        FULL_BLEED_HEIGHT_SCALE, FULL_BLEED_OFFSET_DP, DEFAULT_CURVE_EXP, DEFAULT_BLUR_SCALE,
+    )
+
+    /** Nilai awal khusus canvas Zenith (komunitas). */
+    private val ZENITH_DEFAULTS = FadeValues(
+        height = 0.40f,
+        curve = 0.06f,
+        power = 1.37f,
+        offset = 92.71f,
+        heightFull = 0.52f,
+        offsetFull = 80f,
+        curveExp = 4f,
+        blur = 1.95f,
+    )
+
+    /** True saat klip yang tampil berasal dari Zenith; dipasang oleh NowPlayingScreen. */
+    val zenith = mutableStateOf(false)
+
+    /** Set milik scope yang sedang tidak aktif; ditukar masuk saat scope berganti. */
+    private var parked = ZENITH_DEFAULTS
+
+    private fun applyValues(v: FadeValues) {
+        heightScale.floatValue = v.height
+        curve.floatValue = v.curve
+        power.floatValue = v.power
+        offsetDp.floatValue = v.offset
+        heightScaleFull.floatValue = v.heightFull
+        offsetDpFull.floatValue = v.offsetFull
+        curveExp.floatValue = v.curveExp
+        blurScale.floatValue = v.blur
+    }
+
+    /** Pindah ke set Zenith atau set canvas lain; nilai yang sedang aktif disimpan dulu. */
+    fun selectScope(zenithOn: Boolean) {
+        if (zenithOn == zenith.value) return
+        val current = FadeValues(
+            heightScale.floatValue,
+            curve.floatValue,
+            power.floatValue,
+            offsetDp.floatValue,
+            heightScaleFull.floatValue,
+            offsetDpFull.floatValue,
+            curveExp.floatValue,
+            blurScale.floatValue,
+        )
+        applyValues(parked)
+        parked = current
+        zenith.value = zenithOn
+        ControlLayoutTuning.swapScope()
+    }
+
     fun reset() {
-        heightScale.floatValue = DEFAULT_HEIGHT_SCALE
-        curve.floatValue = DEFAULT_CURVE
-        power.floatValue = DEFAULT_POWER
-        offsetDp.floatValue = DEFAULT_OFFSET_DP
-        heightScaleFull.floatValue = FULL_BLEED_HEIGHT_SCALE
-        offsetDpFull.floatValue = FULL_BLEED_OFFSET_DP
-        curveExp.floatValue = DEFAULT_CURVE_EXP
-        blurScale.floatValue = DEFAULT_BLUR_SCALE
+        applyValues(if (zenith.value) ZENITH_DEFAULTS else OTHER_DEFAULTS)
     }
 
     /**
@@ -174,6 +232,7 @@ object CanvasFadeTuning {
             curveExp.floatValue,
             blurScale.floatValue,
             fullBleed.value,
+            zenith.value,
         )
 }
 
@@ -230,6 +289,28 @@ internal object ControlLayoutTuning {
 
     private val profiles = Array(4) { mutableStateOf(DEFAULTS[it]) }
 
+    /** Nilai awal khusus canvas Zenith, urutan sama dengan [DEFAULTS]. */
+    private val ZENITH_DEFAULTS = arrayOf(
+        ControlProfile(scrubTop = 0.00f, transportTop = 24.10f, transportBottom = 0.00f, volumeTop = 8.00f, volumeBottom = 12.00f, volumeSlot = 28.00f, actionsTop = 0.00f, bottomPad = 20.00f, titleSeparate = true, artExtra = 8.33f, titleExtra = 19.72f),
+        ControlProfile(scrubTop = 0.00f, transportTop = 21.25f, transportBottom = 0.00f, volumeTop = 8.00f, volumeBottom = 18.82f, volumeSlot = 28.00f, actionsTop = 0.00f, bottomPad = 20.00f, titleSeparate = true, artExtra = 20.89f, titleExtra = 41.11f),
+        ControlProfile(scrubTop = 0.00f, transportTop = 28.00f, transportBottom = 0.00f, volumeTop = 8.00f, volumeBottom = 12.00f, volumeSlot = 28.00f, actionsTop = 0.00f, bottomPad = 20.00f, titleSeparate = true, artExtra = -4.69f, titleExtra = 16.11f),
+        ControlProfile(scrubTop = 0.00f, transportTop = 28.00f, transportBottom = 0.00f, volumeTop = 8.00f, volumeBottom = 12.00f, volumeSlot = 28.00f, actionsTop = 0.00f, bottomPad = 20.00f, titleSeparate = true, artExtra = 20.89f, titleExtra = 41.72f),
+    )
+
+    /** Profil milik scope yang sedang tidak aktif; ditukar masuk saat scope berganti. */
+    private val parkedProfiles = Array(4) { ZENITH_DEFAULTS[it] }
+
+    private fun activeDefaults() = if (CanvasFadeTuning.zenith.value) ZENITH_DEFAULTS else DEFAULTS
+
+    /** Tukar profil aktif dengan yang disimpan: dipanggil [CanvasFadeTuning.selectScope]. */
+    fun swapScope() {
+        for (i in 0 until PHASE_COUNT) {
+            val current = profiles[i].value
+            profiles[i].value = parkedProfiles[i]
+            parkedProfiles[i] = current
+        }
+    }
+
     /** Jumlah fase: empat kombinasi volume/lirik. */
     const val PHASE_COUNT = 4
 
@@ -282,11 +363,11 @@ internal object ControlLayoutTuning {
 
     fun reset(volumeHidden: Boolean, lyricStrip: Boolean) {
         val i = index(volumeHidden, lyricStrip)
-        profiles[i].value = DEFAULTS[i]
+        profiles[i].value = activeDefaults()[i]
     }
 
     fun resetAll() {
-        DEFAULTS.forEachIndexed { i, p -> profiles[i].value = p }
+        activeDefaults().forEachIndexed { i, p -> profiles[i].value = p }
     }
 
     fun clearOverrides() {
@@ -345,6 +426,7 @@ internal object ControlLayoutTuning {
 
     /** Teks siap tempel berisi semua setelan, untuk dijadikan default permanen. */
     fun exportText(hideVolume: Boolean, lyricStrip: Boolean): String = buildString {
+        appendLine("Scope: ${if (CanvasFadeTuning.zenith.value) "Canvas Zenith (ZENITH_DEFAULTS)" else "Canvas lain (DEFAULTS)"}")
         appendLine("== Canvas fade (jadikan DEFAULT_* di CanvasFadeTuning) ==")
         appendLine("DEFAULT_HEIGHT_SCALE = ${fmt(CanvasFadeTuning.heightScale.floatValue)}f")
         appendLine("DEFAULT_OFFSET_DP = ${fmt(CanvasFadeTuning.offsetDp.floatValue)}f")
@@ -588,6 +670,10 @@ private fun CanvasTab(canvasActive: Boolean) {
     if (!canvasActive) {
         Caption("Klip Canvas tidak tampil di lagu ini. Nilai tetap bisa disetel dan dipakai saat klip muncul.")
     }
+    Caption(
+        if (CanvasFadeTuning.zenith.value) "Scope: Canvas Zenith (setelan terpisah dari canvas lain)"
+        else "Scope: Canvas lain (Zenith punya setelan sendiri)",
+    )
     Caption(
         if (CanvasFadeTuning.fullBleed.value) "Mode: sampul layar penuh ON (Tinggi dan Geser Y khusus mode ini)"
         else "Mode: sampul layar penuh OFF (Tinggi dan Geser Y khusus mode ini)",

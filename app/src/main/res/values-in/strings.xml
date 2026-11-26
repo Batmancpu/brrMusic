@@ -146,6 +146,9 @@
     <string name="spatial_audio_atmos_subtitle">Dijeda untuk lagu ini — Dolby Atmos sudah spasial</string>
     <string name="spatial_audio_prefer_off">Pilih Audio Spasial Mati</string>
     <string name="spatial_audio_prefer_on">Pilih Audio Spasial Nyala</string>
+    <string name="spatial_audio_this_song_only">Hanya lagu ini</string>
+    <string name="spatial_audio_state_on">Nyala</string>
+    <string name="spatial_audio_state_off">Mati</string>
     <string name="animated_cover_cellular">Putar sampul animasi lewat data seluler</string>
     <string name="replay">Replay</string>
     <string name="replay_subtitle">Lagu, artis, album, dan genre teratas Anda</string>
@@ -812,6 +815,7 @@
     <string name="addon_url_description">Tempel URL addon — direktori utama atau manifest.json.</string>
 
     <string name="advanced_options">Opsi lanjutan</string>
+    <string name="about_app">Tentang</string>
 
     <string name="automix_mode_balanced">Seimbang</string>
 
@@ -895,6 +899,8 @@
     <string name="legacy_mesh_gradient">Gradien mesh klasik</string>
     <string name="canvas_live_blur_panels">Live blur di lirik &amp; antrean</string>
     <string name="canvas_live_blur_panels_subtitle">Cover animasi tetap berputar di belakangnya. Lebih boros baterai</string>
+    <string name="canvas_panel_default_backdrop">Backdrop default di lirik &amp; antrean</string>
+    <string name="canvas_panel_default_backdrop_subtitle">Pakai mesh klasik atau blur cover, bukan frame terakhir Canvas</string>
 
     <string name="legacy_mesh_gradient_subtitle">Kembalikan efek warna mengalir di belakang pemutar dari v1.5</string>
 
@@ -1446,6 +1452,11 @@
     <string name="glass_section_preset">Preset kejernihan</string>
     <string name="glass_section_ready_presets">Preset siap pakai</string>
     <string name="glass_footer_ready_presets">Menerapkan beberapa nilai sekaligus. Slider di bawah tetap bisa menyempurnakannya.</string>
+    <string name="glass_section_my_presets">Preset saya</string>
+    <string name="glass_footer_my_presets">Menyimpan tampilan kaca saat ini, termasuk ukuran nav bar. Menyimpan dengan nama yang sama akan menimpa preset lama.</string>
+    <string name="glass_preset_save_current">Simpan pengaturan saat ini</string>
+    <string name="glass_preset_name">Nama preset</string>
+    <string name="glass_preset_delete_title">Hapus preset</string>
     <string name="glass_preset_default">Bawaan</string>
     <string name="glass_preset_default_subtitle">Tampilan kaca bawaan Zenith</string>
 

@@ -63,6 +63,9 @@ import com.music.zenith.ui.icons.SfIcons
 import com.music.zenith.ui.screens.ChartCountryOption
 import com.music.zenith.ui.screens.chartCountryOptions
 import dev.chrisbanes.haze.HazeState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.zenith.data.settings.AppSettings
+import com.music.zenith.ui.components.backdrop.backdrops.SnapshotBackdrop
 
 /** The popup is capped so a long country list scrolls inside it instead of filling the screen. */
 private val COUNTRY_LIST_MAX_HEIGHT = 380.dp
@@ -159,11 +162,16 @@ fun ChartCountryDropdown(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onPick: (String) -> Unit,
+    backdrop: Backdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     val options = remember { chartCountryOptions() }
     val label = options.firstOrNull { it.code == selected }?.name ?: selected
     val colors = iosMenuColors()
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val still = backdrop as? SnapshotBackdrop
+    val frost = backdrop != null && !reduceDynamicBlur && isGlassSupported() &&
+        (still == null || still.hasStill)
     val content = MaterialTheme.colorScheme.onSurface
     val density = LocalDensity.current
     val progress by animateFloatAsState(
@@ -173,12 +181,14 @@ fun ChartCountryDropdown(
     )
     val p = progress.coerceIn(0f, 1f)
     BackHandler(enabled = expanded) { onExpandedChange(false) }
+    val touch = rememberJellyMenuTouch()
 
     // The capsule's natural width, measured once per label; the box grows from it.
     var collapsedWidth by remember(label) { mutableStateOf(0.dp) }
     // Radius 26dp is clamped to a full capsule while the box is one button tall.
     val shape = remember { RoundedCornerShape(26.dp) }
-    val fill = lerpColor(content.copy(alpha = 0.08f), colors.fill, p)
+    val slab = if (frost) colors.fill.copy(alpha = 0.55f) else colors.fill
+    val fill = lerpColor(content.copy(alpha = 0.08f), slab, p)
     val widthModifier = if (collapsedWidth > 0.dp) {
         Modifier.width(lerpDp(collapsedWidth, maxOf(collapsedWidth, COUNTRY_DROPDOWN_WIDTH), p))
     } else {
@@ -186,14 +196,23 @@ fun ChartCountryDropdown(
     }
     Column(
         modifier = modifier
-            .then(if (!expanded && p == 0f) Modifier.glassJelly(GLASS_JELLY_PRESS_WIDE) else Modifier)
+            .iosMenuJelly(touch, 0f, 0f)
             .then(widthModifier)
             .shadow(lerpDp(0.dp, 20.dp, p), shape, clip = false)
             .clip(shape)
-            .background(fill, shape)
+            .then(
+                if (frost && p > 0f && backdrop != null) {
+                    Modifier.menuBackdropFrost(backdrop, shape, fill)
+                } else {
+                    Modifier.background(fill, shape)
+                },
+            )
             .liquidGlassRim(shape)
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape),
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+            .touchGlow()
+            .iosMenuTouchHost(touch, colors.pressed),
     ) {
+        IosMenuScrollEnvironment(touch) {
         Row(
             modifier = Modifier
                 .onSizeChanged {
@@ -242,6 +261,7 @@ fun ChartCountryDropdown(
                         .fillMaxWidth(),
                 )
             }
+        }
         }
     }
 }
@@ -313,8 +333,10 @@ fun ChartCountryMenu(
         backdrop = backdrop,
         hazeState = hazeState,
         placement = IosMenuPlacement.BelowStart,
+        dimBackground = false,
         glassRim = true,
         frostAlpha = 0.55f,
+        morphAlphaRamp = 1.8f,
     ) {
         ChartCountryMenuBody(options = options, selected = selected, onPick = onPick)
     }

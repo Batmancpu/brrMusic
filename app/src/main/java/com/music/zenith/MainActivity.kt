@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -155,6 +156,8 @@ import com.music.zenith.data.settings.LibrarySort
 import com.music.zenith.data.settings.ThemeMode
 import com.music.zenith.ui.components.AccountProfileSelector
 import com.music.zenith.ui.components.ChartCountryDropdown
+import com.music.zenith.ui.components.ChartCountryButton
+import com.music.zenith.ui.components.ChartCountryMenu
 import com.music.zenith.ui.components.JellyMenuBody
 import com.music.zenith.ui.components.iosMenuJelly
 import com.music.zenith.ui.components.jellyMenuRow
@@ -167,6 +170,7 @@ import com.music.zenith.ui.navigation.AppDestination
 import com.music.zenith.ui.components.CoverFlightHost
 import com.music.zenith.ui.components.CoverFlightLayer
 import com.music.zenith.ui.components.LocalCoverVisibilityScope
+import com.music.zenith.ui.components.LocalPageRevisit
 import com.music.zenith.ui.navigation.AppRoute
 import com.music.zenith.ui.screens.EqualizerPresetPage
 import com.music.zenith.ui.screens.SettingsChoiceKind
@@ -428,7 +432,17 @@ internal fun inPageOrder(shown: List<String>, page: List<String>): Boolean {
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The default style leaves a translucent scrim behind the three-button
+        // bar; transparent on both themes lets the page show through to the edge.
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+            ),
+        )
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+        }
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time ZenithApp first reads it.
         PlayerDeepLink.consume(intent)
@@ -501,11 +515,12 @@ class MainActivity : AppCompatActivity() {
                     LocalMostPlayedArt provides { covers, motion, modifier ->
                         MostPlayedArt(covers, motion, modifier)
                     },
-                    LocalMixCoverBackground provides { colors, motion, modifier ->
+                    LocalMixCoverBackground provides { colors, motion, seed, modifier ->
                         OrganicFluidBackground(
                             modifier = modifier,
                             colors = colors,
                             animationSpeed = if (motion) 2.2f else 0f,
+                            seed = seed,
                         )
                     },
                     LocalAppBackdrop provides appBackdrop,
@@ -1521,6 +1536,8 @@ private fun ZenithApp(
     val moodsGridState = rememberLazyGridState()
     val newReleasesListState = rememberLazyListState()
     val chartsListState = rememberLazyListState()
+    var chartCountryMenuOpen by remember { mutableStateOf(false) }
+
     val searchListState = rememberLazyListState()
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
@@ -1631,7 +1648,7 @@ private fun ZenithApp(
                 available: androidx.compose.ui.geometry.Offset,
                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
             ): androidx.compose.ui.geometry.Offset {
-                if (consumed.y != 0f) {
+                if (consumed.y != 0f && !chartCountryMenuOpen) {
                     val next = (pageScroll.floatValue - consumed.y).coerceAtLeast(0f)
                     pageScroll.floatValue = next
                     pageScrollByKey[pageScrollHolder.key] = next
@@ -3439,11 +3456,22 @@ private fun ZenithApp(
                                 onRetry = { viewModel.loadCharts(force = true) },
                                 onCountryChange = { viewModel.loadCharts(it) },
                                 countryDropdown = { expanded, onExpandedChange, onPick ->
+                                    LaunchedEffect(expanded) {
+                                        chartCountryMenuOpen = expanded
+                                        navBarScroll.frozen = expanded
+                                    }
+                                    androidx.compose.runtime.DisposableEffect(Unit) {
+                                        onDispose {
+                                            chartCountryMenuOpen = false
+                                            navBarScroll.frozen = false
+                                        }
+                                    }
                                     ChartCountryDropdown(
                                         selected = chartsCountry,
                                         expanded = expanded,
                                         onExpandedChange = onExpandedChange,
                                         onPick = onPick,
+                                        backdrop = pageBackdrop,
                                     )
                                 },
                                 onShelfItemClick = onExploreShelfClick,
@@ -3504,10 +3532,14 @@ private fun ZenithApp(
                                 contentPadding = listPadding,
                             )
                         } else if (pageRoute == AppRoute.AccountScrobbling) {
+                            // Brand profiles are only known once the channel list has been
+                            // fetched, so fetch it on arrival rather than on the first tap.
+                            LaunchedEffect(signedIn) { if (signedIn) viewModel.loadChannels() }
                             AccountAndScrobblingScreen(
                                 signedIn = signedIn,
                                 account = account,
                                 channelName = selectedChannelName,
+                                canSwitchProfile = googleAccounts.sumOf { it.profiles.size } > 1,
                                 onSignIn = {
                                     navigator.clear()
                                     webSession = WebSessionMode.SIGN_IN
@@ -3982,7 +4014,7 @@ private fun ZenithApp(
                                 refreshing = MainViewModel.Feed.EXPLORE in refreshing,
                                 onNewReleases = { navigator.push(AppRoute.NewReleases) },
                                 onCharts = { navigator.push(AppRoute.Charts) },
-                                onMoods = { selectedTab = TAB_SEARCH },
+                                onMoods = { navigator.push(AppRoute.Moods) },
                                 onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                                 pullState = explorePull,
                                 contentPadding = listPadding,
@@ -4298,9 +4330,13 @@ private fun ZenithApp(
                     // the background, or this page on its way out: each frame of
                     // them redraws the page under the glass, for nobody.
                     val barsMotion = artworkMotion && transition.targetState == EnterExitState.Visible
+                    // Dibaca sebelum key dicatat di bawah: sudah tercatat berarti
+                    // halaman ini masih di stack dan sedang didatangi kembali.
+                    val revisit = remember(key) { key in pageKeysSeen }
                     CompositionLocalProvider(
                         LocalPlayingBarsMotion provides barsMotion,
                         LocalCoverVisibilityScope provides this@AnimatedContent,
+                        LocalPageRevisit provides revisit,
                     ) {
                         if (destination is AppDestination.Tab) {
                             pageContent()
@@ -4486,6 +4522,8 @@ private fun ZenithApp(
                             AppRoute.ListenTogether -> stringResource(R.string.listen_together)
                             AppRoute.Sources -> stringResource(R.string.source)
                             AppRoute.Charts -> "Chart"
+                            AppRoute.Moods -> stringResource(R.string.find_your_mood)
+                            AppRoute.NewReleases -> stringResource(R.string.shelf_new_releases)
                             else -> null
                         }
                     } else null,
@@ -4703,6 +4741,35 @@ private fun ZenithApp(
                                         tint = MaterialTheme.colorScheme.onSurface,
                                     )
                                 }
+                                }
+                                // Share sits left of the ••• while the pill is at rest, in
+                                // the same pill. Tapping ••• unfolds the bar, and Share folds
+                                // away with it: the overflow it opens already carries Share.
+                                val shareableRelease = isReleaseDetail &&
+                                    (detail.type == BrowseType.ALBUM || detail.type == BrowseType.PLAYLIST) &&
+                                    !detail.browseId.startsWith("local:") &&
+                                    !detail.browseId.startsWith(SPOTIFY_PAGE_PREFIX)
+                                ActionReveal(visible = !actionsOpen && shareableRelease) {
+                                    IconButton(
+                                        onClick = {
+                                            val url = if (detail.type == BrowseType.PLAYLIST) {
+                                                "https://music.youtube.com/playlist?list=${detail.browseId.removePrefix("VL")}"
+                                            } else {
+                                                "https://music.youtube.com/browse/${detail.browseId}"
+                                            }
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, url)
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, detail.title))
+                                        },
+                                    ) {
+                                        Icon(
+                                            SfIcons.Share,
+                                            contentDescription = stringResource(R.string.share),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
                                 }
                                 // The same ••• is both the unfold button at rest and the
                                 // overflow once open: the bar grows to its left, so it
@@ -5218,6 +5285,7 @@ private fun ZenithApp(
                 (songActions != null && songMenuOrigin == null && !((menuFromPlayer || menuFromQueue) && playerRaised)) ||
                     (browseActions != null && browseMenuOrigin == null && !browseRenameInSheet) ||
                     songInfoTarget != null ||
+                    chartCountryMenuOpen ||
                     searchSourceMenu != null
             LaunchedEffect(pageMenuUp, reduceDynamicBlur) {
                 if (pageMenuUp && !reduceDynamicBlur && isGlassSupported()) {
@@ -6754,6 +6822,10 @@ private fun ZenithApp(
                 onOpenSettings = {
                     showAccountSelector = false
                     navigator.push(AppRoute.Settings)
+                },
+                onOpenEqualizer = {
+                    showAccountSelector = false
+                    navigator.push(AppRoute.Equalizer)
                 },
                 onDismiss = { showAccountSelector = false },
                 onClosing = { accountSelectorLeaving = true },

@@ -1954,7 +1954,7 @@ private fun LosslessOrStats(
             detail = nerdStats,
             modifier = modifier,
         )
-        nerdStats?.isDolbyAtmos == true || dolbyAtmosActive -> LosslessLabel(
+        nerdStats?.isDolbyAtmos == true -> LosslessLabel(
             text = "Dolby Atmos",
             animated = true,
             iconPainter = painterResource(Res.drawable.ic_dolby_atmos),
@@ -1963,12 +1963,31 @@ private fun LosslessOrStats(
         // Lossy, but the good end of lossy — a module's 320kbps tier, which
         // for a great many tracks is the best copy that exists anywhere the
         // app can reach. See [NerdStats.Snapshot.isHiQuality].
+        // Served by JioSaavn: the badge says only "JioSaavn", with its logo,
+        // and is a chip that opens the stream details card when tapped.
+        nerdStats?.isHiQuality == true && nerdStats.isJioSaavn() -> LosslessLabel(
+            text = "JioSaavn",
+            animated = false,
+            iconPainter = painterResource(Res.drawable.ic_jiosaavn),
+            iconSize = 13.dp,
+            chip = true,
+            detail = nerdStats,
+            modifier = modifier,
+        )
         nerdStats?.isHiQuality == true -> LosslessLabel(
             text = stringResource(Res.string.high_quality),
             animated = false,
             iconPainter = rememberVectorPainter(Icons.Rounded.Headphones),
             // A Material glyph's own size is 24dp; the badge's are drawn small.
             iconSize = 13.dp,
+            modifier = modifier,
+        )
+        // Fallback: no quality badge applies, but Atmos is switched on in
+        // settings and playable on this device, so its badge stays visible.
+        dolbyAtmosActive -> LosslessLabel(
+            text = "Dolby Atmos",
+            animated = true,
+            iconPainter = painterResource(Res.drawable.ic_dolby_atmos),
             modifier = modifier,
         )
         // Below that, no badge: "Medium Quality" and "Data Saver" are gone.
@@ -1997,6 +2016,8 @@ private fun LosslessLabel(
         QualityMorphChip(
             text = text,
             iconPainter = iconPainter,
+            iconSize = iconSize,
+            animated = animated,
             modifier = modifier,
         )
         return
@@ -2094,6 +2115,10 @@ internal class QualityDetailState {
 
 internal val LocalQualityDetail = compositionLocalOf<QualityDetailState?> { null }
 
+/** Whether this stream was served by JioSaavn, judged by the source's display name. */
+private fun NerdStats.Snapshot.isJioSaavn(): Boolean =
+    sourceName?.contains("jiosaavn", ignoreCase = true) == true
+
 private fun NerdStats.Snapshot.rateLabel(): String? = sampleRateHz?.let {
     NerdStats.megahertzLabel(it) ?: "%.1f kHz".format(Locale.ROOT, it / 1000f)
 }
@@ -2152,6 +2177,8 @@ private fun NerdStats.Snapshot.qualityRows(): List<QualityRow> = buildList {
 private fun QualityMorphChip(
     text: String,
     iconPainter: Painter,
+    iconSize: Dp = Dp.Unspecified,
+    animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val detail = LocalQualityDetail.current
@@ -2192,8 +2219,9 @@ private fun QualityMorphChip(
     ) {
         LosslessLabel(
             text = text,
-            animated = true,
+            animated = animated,
             iconPainter = iconPainter,
+            iconSize = iconSize,
             chip = true,
         )
     }
@@ -2219,10 +2247,11 @@ internal fun QualityDetailPopup(
         state.open = false
         state.progress = 0f
     }
-    LaunchedEffect(latest?.isLossless) {
-        if (latest?.isLossless != true) dismiss()
+    val detailShown = latest?.let { it.isLossless || (it.isHiQuality && it.isJioSaavn()) } == true
+    LaunchedEffect(detailShown) {
+        if (!detailShown) dismiss()
     }
-    val stats = latest?.takeIf { it.isLossless } ?: return
+    val stats = latest?.takeIf { detailShown } ?: return
     val rows = stats.qualityRows()
     val summary = stats.qualitySummary()
     PlayerPopup(
@@ -2245,12 +2274,22 @@ internal fun QualityDetailPopup(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ShimmerIcon(
-                    painter = painterResource(Res.drawable.ic_lossless),
-                    modifier = Modifier.size(width = 46.dp, height = 25.dp),
+                    painter = painterResource(
+                        if (stats.isLossless) Res.drawable.ic_lossless else Res.drawable.ic_jiosaavn,
+                    ),
+                    modifier = if (stats.isLossless) {
+                        Modifier.size(width = 46.dp, height = 25.dp)
+                    } else {
+                        Modifier.size(26.dp)
+                    },
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = stringResource(if (stats.isHiRes) Res.string.hi_res_lossless else Res.string.lossless),
+                    text = when {
+                        !stats.isLossless -> "JioSaavn"
+                        stats.isHiRes -> stringResource(Res.string.hi_res_lossless)
+                        else -> stringResource(Res.string.lossless)
+                    },
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -2265,7 +2304,10 @@ internal fun QualityDetailPopup(
         if (summary.isNotEmpty()) {
             Text(
                 text = summary,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                ),
                 color = Color.White.copy(alpha = 0.7f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

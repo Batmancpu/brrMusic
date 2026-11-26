@@ -114,9 +114,18 @@ A calmer identity, from the first frame to the last detail.
 ## Install
 
 <div align="center">
-
-<a href="https://github.com/Batmancpu/brrMusic/releases/latest"><img alt="Download brrMusic for Android" src="https://img.shields.io/badge/DOWNLOAD%20brrMusic-8E99FF?style=for-the-badge&logo=android&logoColor=white" /></a>
-
+<table>
+  <tr>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/screenshot-1.jpg" alt="Home" width="100%" /><br/><sub><b>Home</b></sub></td>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/screenshot-2.jpg" alt="Explore" width="100%" /><br/><sub><b>Explore</b></sub></td>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/screenshot-3.jpg" alt="Library" width="100%" /><br/><sub><b>Library</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/screenshot-4.jpg" alt="Liked Music" width="100%" /><br/><sub><b>Liked Music</b></sub></td>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/18.jpg" alt="Player" width="100%" /><br/><sub><b>Player</b></sub></td>
+    <td align="center" width="33%"><img src=".github/assets/screenshots/17.jpg" alt="Album" width="100%" /><br/><sub><b>Album</b></sub></td>
+  </tr>
+</table>
 </div>
 
 1. Open **[the latest brrMusic release](https://github.com/Batmancpu/brrMusic/releases/latest)**.
@@ -175,8 +184,88 @@ fc/
 
 To inspect or build from source, see the [repository files](https://github.com/Batmancpu/brrMusic), [integration notes](fc/README.md) and [Android build workflow](.github/workflows/build-apk.yml). Problems and feature proposals belong in [Issues](https://github.com/Batmancpu/brrMusic/issues).
 
-> [!WARNING]
-> brrMusic is a third-party client and is **not affiliated with or endorsed by** Google, YouTube, YouTube Music, Spotify, Dolby, OPPO or OnePlus. External services may change their interfaces or terms. Respect copyright, applicable platform terms and local law.
+</details>
+
+<details open>
+<summary><b>Lyrics</b></summary>
+
+- Word-synced lyrics with the MOTION engine and the LiquidFlow effect, a smooth word sweep that flows with the music.
+- The LiquidFlow effect is inspired by [Mochy Music](https://github.com/realidkroo/Mochy-Music) by [realidkroo](https://github.com/realidkroo).
+- Apple Music–style lyrics animation, credit to [binimum](https://github.com/binimum/am-lyrics).
+- Providers: [lrc.red](https://lrc.red), [BiniLyrics](https://github.com/binimum), [BetterLyrics](https://github.com/better-lyrics/better-lyrics), [PaxSenix](https://lyrics.paxsenix.org), [LyricsPlus](https://github.com/ibratabian17/YouLyPlus), [SimpMusic](https://github.com/maxrave-dev/SimpMusic), [Unison](https://unison.boidu.dev), [Megalobiz](https://www.megalobiz.com), [KuGou](https://www.kugou.com), [LRCLIB](https://lrclib.net), [Musixmatch](https://www.musixmatch.com) and [Genius](https://genius.com).
+
+</details>
+
+<details open>
+<summary><b>Accounts and connections</b></summary>
+
+- Sign in with Google for personalized content.
+- Spotify integration for your playlists and Liked Songs.
+- Discord Rich Presence, plus scrobbling to Last.fm and ListenBrainz.
+- Listen Together for listening in sync with friends.
+- Pluggable module sources you can add, edit and test.
+
+</details>
+
+<details open>
+<summary><b>Controls</b></summary>
+
+- Separate audio quality for Wi-Fi and mobile data.
+- Playback speed from 0.5× to 2.0×, skip silence, sleep timer and system equalizer.
+- Stats for nerds: codec, bit depth and sample rate on the player screen.
+
+</details>
+
+---
+
+## What's different from BitChord
+
+Zenith is my personal fork of [BitChord](https://github.com/kushagrasinghx/BitChord), rebuilt as an Android-only app with its own identity, interface and release pipeline.
+
+---
+
+## Community
+
+Join the discussion, share feedback or ask for help on [r/ZenithMusic](https://www.reddit.com/r/ZenithMusic/s/gN6chb7onR). Bug reports and feature requests are still welcome as [GitHub issues](../../issues).
+
+---
+
+## Credits
+
+Zenith is built on top of [BitChord](https://github.com/kushagrasinghx/BitChord) by [kushagrasinghx](https://github.com/kushagrasinghx) and its contributors. Thank you for the foundation.
+
+- **LiquidFlow** lyric effect: inspired by [Mochy Music](https://github.com/realidkroo/Mochy-Music) by [realidkroo](https://github.com/realidkroo).
+
+---
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=rezapranata089-bit%2FZenith&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=rezapranata089-bit/Zenith&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=rezapranata089-bit/Zenith&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=rezapranata089-bit/Zenith&type=date&legend=top-left" />
+ </picture>
+</a>
+
+<div align="center">
+  <sub>Star the repo if you like Zenith, thank you!</sub>
+</div>
+
+---
+
+## Disclaimer
+
+<details open>
+<summary><b>Legal notice</b></summary>
+
+Zenith is an independent third-party audio player. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
+
+- **No media hosting**: Zenith does not host or upload copyrighted music. It only acts as an interface to local storage or to public and user-authenticated APIs.
+- **Fair use**: made for personal, research and educational purposes. You are responsible for following your local copyright laws and the YouTube Terms of Service.
+- **No guarantees**: features may stop working if third-party platforms change their rules.
+
+</details>
 
 ## License
 
