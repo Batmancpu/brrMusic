@@ -515,11 +515,12 @@ class MainActivity : AppCompatActivity() {
                     LocalMostPlayedArt provides { covers, motion, modifier ->
                         MostPlayedArt(covers, motion, modifier)
                     },
-                    LocalMixCoverBackground provides { colors, motion, modifier ->
+                    LocalMixCoverBackground provides { colors, motion, seed, modifier ->
                         OrganicFluidBackground(
                             modifier = modifier,
                             colors = colors,
                             animationSpeed = if (motion) 2.2f else 0f,
+                            seed = seed,
                         )
                     },
                     LocalAppBackdrop provides appBackdrop,

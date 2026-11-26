@@ -84,6 +84,8 @@ fun OrganicFluidBackground(
     modifier: Modifier = Modifier,
     colors: List<Color> = OrganicFluidDefaults.Palette,
     animationSpeed: Float = 1f,
+    /** 0..1, stabil per mix: mengubah arah aliran, kecepatan, putaran, dan posisi blob. */
+    seed: Float = 0f,
 ) {
     val context = LocalContext.current
     val motionAllowed = remember(context) {
@@ -131,7 +133,7 @@ fun OrganicFluidBackground(
                 // tanpa recomposition.
                 val t = clock.seconds
                 if (agsl != null) {
-                    agsl.draw(this, t.toFloat(), colorsState.value)
+                    agsl.draw(this, t.toFloat(), colorsState.value, seed)
                 } else {
                     raster.draw(this, t.toFloat(), colorsState.value)
                 }
@@ -192,9 +194,10 @@ private class AgslFluid {
     private val shader = RuntimeShader(FLUID_AGSL)
     private val brush = ShaderBrush(shader)
 
-    fun draw(scope: DrawScope, time: Float, colors: List<Color>) {
+    fun draw(scope: DrawScope, time: Float, colors: List<Color>, seed: Float) {
         shader.setFloatUniform("iResolution", scope.size.width, scope.size.height)
         shader.setFloatUniform("iTime", time)
+        shader.setFloatUniform("iSeed", seed)
         val n = colors.size
         for (i in 0 until 5) {
             val c = colors[i % n]
@@ -363,6 +366,7 @@ private class FluidRaster {
 private const val FLUID_AGSL = """
 uniform float2 iResolution;
 uniform float iTime;
+uniform float iSeed;
 uniform float3 c0;
 uniform float3 c1;
 uniform float3 c2;
@@ -387,45 +391,92 @@ float2 rot(float2 v, float a) {
     return float2(c * v.x - s * v.y, s * v.x + c * v.y);
 }
 
+// Aliran terdistorsi satu lapisan. fq = frekuensi, wa = arah aliran, sw = putaran pusaran.
+float2 flow(float2 p, float t, float fq, float wa, float sw) {
+    float2 w = p;
+    w += 0.30 * rot(float2(sin(p.y * 2.3 * fq + t * 0.23), cos(p.x * 2.1 * fq - t * 0.19)), wa);
+    w += 0.17 * rot(float2(sin(w.y * 3.7 * fq - t * 0.31 + 1.3), cos(w.x * 3.3 * fq + t * 0.27 + 2.1)), wa);
+    w += 0.08 * float2(sin(w.y * 6.1 * fq + t * 0.41 + 0.7), cos(w.x * 5.5 * fq - t * 0.37 + 4.0));
+    return rot(w, sw * exp(-dot(p, p) * 2.2) * sin(t * 0.09));
+}
+
 half4 main(float2 fc) {
     float2 p = (fc - 0.5 * iResolution) / min(iResolution.x * 1.35, iResolution.y);
-    float t = iTime;
 
-    // Domain warping: tiga oktaf aliran sinusoidal, masing-masing dengan lajunya sendiri.
-    float2 w = p;
-    w += 0.30 * float2(sin(p.y * 2.3 + t * 0.23), cos(p.x * 2.1 - t * 0.19));
-    w += 0.17 * float2(sin(w.y * 3.7 - t * 0.31 + 1.3), cos(w.x * 3.3 + t * 0.27 + 2.1));
-    w += 0.08 * float2(sin(w.y * 6.1 + t * 0.41 + 0.7), cos(w.x * 5.5 - t * 0.37 + 4.0));
+    // Karakter gerak tiap kartu dari seed: kecepatan, arah aliran, frekuensi, putaran pusaran.
+    float s1 = fract(iSeed * 7.31);
+    float s2 = fract(iSeed * 13.7 + 0.3);
+    float s3 = fract(iSeed * 3.9 + 0.6);
+    float t = iTime * (0.75 + 0.8 * s1) + iSeed * 240.0;
+    float fq = 0.85 + 0.6 * s3;
+    float wa = s2 * 6.2832;
+    float sw = (s1 > 0.5 ? 1.0 : -1.0) * (0.5 + s3);
 
-    // Dasar warna, ikut terdistorsi sehingga latar pun mengalir.
-    float g = clamp(0.5 + w.y * 0.85 + 0.18 * sin(w.x * 2.0 + t * 0.13), 0.0, 1.0);
+    // Dua lapisan dengan paralaks: lapisan jauh lebih lambat dan bergeser berlawanan.
+    float2 par = 0.10 * float2(sin(t * 0.05 + s1 * 6.0), cos(t * 0.043 + s2 * 6.0));
+    float2 wNear = flow(p + par, t, fq, wa, sw);
+    float2 wFar = flow(p - par * 1.6, t * 0.55 + 17.0, fq * 0.8, wa + 1.0, -sw * 0.6);
+
+    float g = clamp(0.5 + wFar.y * 0.85 + 0.18 * sin(wFar.x * 2.0 + t * 0.13), 0.0, 1.0);
     float3 col = mix(pal(2.0 + t * 0.012), pal(3.55 + t * 0.012), g);
 
-    // Blob tinta: medan gaussian anisotropik di ruang terdistorsi, berputar dan bernapas.
+    float H = 0.0;
+    float2 G = float2(0.0);
     for (int i = 0; i < 6; i++) {
         float k = float(i) + 1.0;
-        float h1 = fract(sin(k * 91.7) * 437.5);
-        float h2 = fract(sin(k * 37.3) * 951.1);
-        float h3 = fract(sin(k * 53.9) * 173.3);
-        float h4 = fract(sin(k * 17.1) * 683.7);
+        float near = step(3.5, k);
+        float ks = k + iSeed * 11.0;
+        float tl = mix(t * 0.6, t, near);
+        float h1 = fract(sin(ks * 91.7) * 437.5);
+        float h2 = fract(sin(ks * 37.3) * 951.1);
+        float h3 = fract(sin(ks * 53.9) * 173.3);
+        float h4 = fract(sin(ks * 17.1) * 683.7);
         float2 c = float2(
-            0.55 * sin(t * (0.06 + 0.08 * h1) + k * 2.3) + 0.20 * sin(t * (0.15 + 0.10 * h2) + k * 5.1),
-            0.50 * sin(t * (0.07 + 0.08 * h2) + k * 1.7 + 1.0) + 0.20 * sin(t * (0.13 + 0.10 * h3) + k * 3.3)
+            0.55 * sin(tl * (0.06 + 0.08 * h1) + ks * 2.3) + 0.20 * sin(tl * (0.15 + 0.10 * h2) + ks * 5.1),
+            0.50 * sin(tl * (0.07 + 0.08 * h2) + ks * 1.7 + 1.0) + 0.20 * sin(tl * (0.13 + 0.10 * h3) + ks * 3.3)
         );
         float2 r = float2(
-            0.26 + 0.32 * h3 + 0.08 * sin(t * (0.10 + 0.10 * h4) + k),
-            0.11 + 0.13 * h4 + 0.05 * sin(t * (0.12 + 0.10 * h1) + k * 2.0)
-        );
+            0.26 + 0.32 * h3 + 0.08 * sin(tl * (0.10 + 0.10 * h4) + ks),
+            0.11 + 0.13 * h4 + 0.05 * sin(tl * (0.12 + 0.10 * h1) + ks * 2.0)
+        ) * mix(1.35, 1.0, near);
         float dir = h2 > 0.5 ? 1.0 : -1.0;
-        float ang = t * (0.04 + 0.06 * h1) * dir + k * 1.3;
-        float2 d = rot(w - c, ang) / r;
+        float ang = tl * (0.04 + 0.06 * h1) * dir + ks * 1.3;
+        float2 ww = mix(wFar, wNear, near);
+        float2 dv = ww - c;
+        float2 d = rot(dv, ang) / r;
         float a = exp(-dot(d, d));
-        col = mix(col, pal(k * 0.83 + t * 0.022 + h1 * 2.0), clamp(a, 0.0, 1.0) * 0.9);
+
+        // Bayangan jatuh blob dekat ke lapisan di bawahnya.
+        float2 d2 = rot(dv - float2(0.04, 0.06), ang) / r;
+        col *= 1.0 - near * 0.28 * exp(-dot(d2, d2)) * (1.0 - clamp(a, 0.0, 1.0));
+
+        float3 pc = pal(ks * 0.83 + tl * 0.022 + h1 * 2.0) * mix(0.78, 1.0, near);
+        col = mix(col, pc, clamp(a, 0.0, 1.0) * mix(0.70, 0.92, near));
+
+        // Medan ketebalan + gradiennya (hanya blob dekat) untuk pencahayaan.
+        H += near * a;
+        G += near * (-2.0 * a) * rot(d / r, -ang);
     }
 
+    // Pencahayaan: terang dari kiri atas, sisi sebaliknya menggelap, sorot spekular dan rim.
+    float3 L = normalize(float3(-0.55, -0.65, 0.62));
+    float3 n = normalize(float3(-G * 0.30, 1.0));
+    float shade = clamp(H, 0.0, 1.0);
+    col *= 1.0 + (dot(n, L) - L.z) * 1.1 * shade;
+    float3 hv = normalize(L + float3(0.0, 0.0, 1.0));
+    float spec = pow(clamp(dot(n, hv), 0.0, 1.0), 48.0) * smoothstep(0.08, 0.6, H);
+    col += float3(1.0, 0.96, 0.94) * spec * 0.45;
+    col += pow(1.0 - n.z, 1.6) * smoothstep(0.05, 0.5, H) * 0.22;
+    col *= mix(0.86, 1.0, smoothstep(0.0, 0.7, H));
+
     // Kilau lembut seperti cahaya yang menembus cairan.
-    float ridge = pow(0.5 + 0.5 * sin(w.x * 2.6 + w.y * 1.9 + t * 0.17), 3.0);
-    col = mix(col, float3(1.0, 0.86, 0.86), 0.10 * ridge);
+    float ridge = pow(0.5 + 0.5 * sin(wNear.x * 2.6 + wNear.y * 1.9 + t * 0.17), 3.0);
+    col = mix(col, float3(1.0, 0.86, 0.86), 0.08 * ridge);
+
+    // Vignette tepi dan sheen tipis dari atas, supaya kartu terasa cembung.
+    float2 q = fc / iResolution - 0.5;
+    col *= 1.0 - 0.20 * smoothstep(0.30, 0.75, length(q));
+    col += 0.05 * (1.0 - smoothstep(0.0, 0.45, fc.y / iResolution.y));
 
     // Dither agar tidak ada banding pada gradien halus.
     col += (fract(sin(dot(fc, float2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
