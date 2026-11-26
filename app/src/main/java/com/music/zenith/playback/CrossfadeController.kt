@@ -168,6 +168,11 @@ class CrossfadeController(
      */
     private val analysisRunningFor: (MediaItem) -> Boolean = { false },
     /**
+     * Why a media item has no analysis yet — a hot phone, audio still
+     * downloading, no YouTube copy. Only feeds the stats line.
+     */
+    private val analysisNoteFor: (MediaItem) -> String? = { null },
+    /**
      * The track about to be loaded onto the standby player, announced at the
      * moment [begin] arms rather than at the handoff.
      *
@@ -2993,8 +2998,9 @@ class CrossfadeController(
             val analysis = analysisFor(target)
             val state = stateOf(target, analysis)
             if (state == TrackAnalysisState.ANALYSING) return "analysing…"
-            if (state == TrackAnalysisState.WAITING) return "waiting"
-            if (state == TrackAnalysisState.FAILED || !analysis.isUsable) return "failed"
+            val why = analysisNoteFor(target)?.let { " ($it)" }.orEmpty()
+            if (state == TrackAnalysisState.WAITING) return "waiting$why"
+            if (state == TrackAnalysisState.FAILED || !analysis.isUsable) return "failed$why"
             val side = if (outgoing) analysis.tailBeats else analysis.headBeats
             val bpm = side?.bpm ?: analysis.bpm
             val confidence = side?.confidence ?: analysis.beatConfidence

@@ -317,6 +317,33 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
     fun isAnalysing(trackId: String): Boolean = trackId in running
 
     /**
+     * Why [trackId] has no analysis yet, in words a listener can act on, for
+     * stats for nerds. Null when there is nothing worth saying.
+     *
+     * The thermal state is read live rather than from the last note, so a
+     * "phone too hot" reason disappears by itself once the phone has cooled.
+     */
+    fun statusNote(trackId: String): String? {
+        val raw = lastNotes[trackId]
+        if (raw != null && raw.startsWith("failed:")) return raw.take(80)
+        if (overheated) {
+            val level = when (thermalStatus) {
+                PowerManager.THERMAL_STATUS_SEVERE -> "SEVERE"
+                PowerManager.THERMAL_STATUS_CRITICAL -> "CRITICAL"
+                PowerManager.THERMAL_STATUS_EMERGENCY -> "EMERGENCY"
+                else -> "SHUTDOWN"
+            }
+            return "phone too hot, $level"
+        }
+        return when {
+            raw == null -> null
+            raw.startsWith("no YouTube copy") -> "no YouTube copy to analyse"
+            raw.startsWith("waiting for audio") -> "waiting for audio to download"
+            else -> null
+        }
+    }
+
+    /**
      * Queues [trackId] (playing at [uri]) for analysis if it is not already
      * done or in flight. Cheap to call repeatedly; callers re-request as
      * caching progresses.
