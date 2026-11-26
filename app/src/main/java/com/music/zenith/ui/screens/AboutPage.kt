@@ -14,8 +14,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -24,14 +26,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -49,11 +56,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,9 +79,13 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import java.time.Instant
+import java.util.Locale
 
 private const val FALLBACK_REPO = "rezapranata089-bit/Zenith"
 private const val MAX_COMMITS = 30
+
+private val TileShape = RoundedCornerShape(16.dp)
+private val GridGap = 10.dp
 
 private data class ChangeCommit(
     val sha: String,
@@ -82,13 +95,15 @@ private data class ChangeCommit(
     val url: String,
 )
 
+private data class ChangeLog(val commits: List<ChangeCommit>, val releasedMillis: Long)
+
 private sealed interface ChangesState {
     data object Loading : ChangesState
-    data class Loaded(val commits: List<ChangeCommit>) : ChangesState
+    data class Loaded(val log: ChangeLog) : ChangesState
     data object Failed : ChangesState
 }
 
-private val changesCache = HashMap<String, List<ChangeCommit>>()
+private val changesCache = HashMap<String, ChangeLog>()
 private val aboutJson = Json { ignoreUnknownKeys = true }
 private val conventionalSubject = Regex("^(\\w+)(?:\\([^)]*\\))?!?:\\s*(.+)$")
 private val conventionalTypes = setOf(
@@ -96,8 +111,9 @@ private val conventionalTypes = setOf(
 )
 
 /**
- * The About page: app icon, name and version on top, then project links,
- * the commits that make up this version (from the GitHub repo) and credits.
+ * The About page, laid out as a grid: hero, a 2x2 block of facts about this
+ * build, three link tiles, the commits of this version as a timeline, and a
+ * one-line credit.
  */
 @Composable
 internal fun AboutContent(version: String) {
@@ -106,49 +122,140 @@ internal fun AboutContent(version: String) {
     val tag = remember(version) { "v" + version.substringBefore('-') }
     val repoUrl = "https://github.com/$repo"
 
-    AboutHero(version = version)
+    var attempt by remember { mutableIntStateOf(0) }
+    val state by produceState<ChangesState>(ChangesState.Loading, repo, tag, attempt) {
+        value = ChangesState.Loading
+        value = loadChanges(repo, tag)?.let { ChangesState.Loaded(it) } ?: ChangesState.Failed
+    }
 
-    SettingsGroup(header = "Project") {
+    val releasedText = when (val s = state) {
+        is ChangesState.Loading -> "\u2026"
+        is ChangesState.Failed -> "\u2014"
+        is ChangesState.Loaded -> if (s.log.releasedMillis > 0L) {
+            DateUtils.formatDateTime(
+                context,
+                s.log.releasedMillis,
+                DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR,
+            )
+        } else {
+            "\u2014"
+        }
+    }
+    val changesText = when (val s = state) {
+        is ChangesState.Loading -> "\u2026"
+        is ChangesState.Failed -> "\u2014"
+        is ChangesState.Loaded -> s.log.commits.size.toString()
+    }
+
+    AboutHero()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = GROUP_INSET)
+            .padding(top = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(GridGap),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(GridGap)) {
+            InfoTile(Icons.Rounded.LocalOffer, "Version", version, Modifier.weight(1f))
+            InfoTile(
+                Icons.Rounded.Build,
+                "Build",
+                BuildConfig.BUILD_TYPE.replaceFirstChar { it.uppercase() },
+                Modifier.weight(1f),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(GridGap)) {
+            InfoTile(Icons.Rounded.CalendarMonth, "Released", releasedText, Modifier.weight(1f))
+            InfoTile(Icons.Rounded.History, "Changes", changesText, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(GridGap)) {
+            ActionTile(Icons.Rounded.Code, "Source", Modifier.weight(1f)) {
+                context.openAboutLink(repoUrl)
+            }
+            ActionTile(Icons.Rounded.NewReleases, "Releases", Modifier.weight(1f)) {
+                context.openAboutLink("$repoUrl/releases")
+            }
+            ActionTile(Icons.Rounded.BugReport, "Issues", Modifier.weight(1f)) {
+                context.openAboutLink("$repoUrl/issues")
+            }
+        }
+    }
+
+    SectionLabel("What's new in $tag")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = GROUP_INSET)
+            .clip(TileShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        when (val s = state) {
+            is ChangesState.Loading -> ChangesLoadingRow()
+            is ChangesState.Failed -> SettingsRow(
+                icon = Icons.Rounded.Refresh,
+                title = "Couldn't load changes",
+                subtitle = "Check your connection, then tap to retry.",
+                onClick = { attempt++ },
+            )
+            is ChangesState.Loaded -> {
+                if (s.log.commits.isEmpty()) {
+                    SettingsRow(title = "No commits found for this version")
+                } else {
+                    val last = s.log.commits.lastIndex
+                    s.log.commits.forEachIndexed { index, commit ->
+                        TimelineCommitRow(
+                            commit = commit,
+                            isFirst = index == 0,
+                            isLast = index == last,
+                            onClick = { context.openAboutLink(commit.url) },
+                        )
+                    }
+                }
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
         SettingsRow(
-            icon = Icons.Rounded.Code,
-            title = "Source code",
-            subtitle = repo,
-            onClick = { context.openAboutLink(repoUrl) },
-        )
-        RowDivider()
-        SettingsRow(
-            icon = Icons.Rounded.NewReleases,
-            title = "Releases",
-            onClick = { context.openAboutLink("$repoUrl/releases") },
-        )
-        RowDivider()
-        SettingsRow(
-            icon = Icons.Rounded.BugReport,
-            title = "Report an issue",
-            onClick = { context.openAboutLink("$repoUrl/issues") },
+            icon = Icons.Rounded.Description,
+            title = "Full release notes",
+            onClick = { context.openAboutLink("$repoUrl/releases/tag/$tag") },
         )
     }
 
-    ChangesGroup(repo = repo, tag = tag, repoUrl = repoUrl)
-
-    SettingsGroup(header = "Credits") {
-        SettingsRow(
-            icon = Icons.Rounded.Favorite,
-            title = "BitChord",
-            subtitle = "The open-source app Zenith is forked from",
-            onClick = { context.openAboutLink("https://github.com/kushagrasinghx/BitChord") },
-        )
-    }
-    Spacer(Modifier.height(24.dp))
+    Text(
+        text = "Forked from BitChord",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textDecoration = TextDecoration.Underline,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { context.openAboutLink("https://github.com/kushagrasinghx/BitChord") }
+            .padding(top = 22.dp, bottom = 28.dp),
+    )
 }
 
 @Composable
-private fun AboutHero(version: String) {
+private fun SectionLabel(text: String) {
+    Text(
+        text = text.uppercase(Locale.ROOT),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(
+            start = GROUP_INSET + 4.dp,
+            end = GROUP_INSET,
+            top = 26.dp,
+            bottom = 8.dp,
+        ),
+    )
+}
+
+@Composable
+private fun AboutHero() {
     val context = LocalContext.current
     val icon = remember(context) { context.appIconBitmap(432) }
     val accent = MaterialTheme.colorScheme.primary
     val iconShape = RoundedCornerShape(21.dp)
-    val buildType = BuildConfig.BUILD_TYPE
 
     Column(
         modifier = Modifier
@@ -156,13 +263,13 @@ private fun AboutHero(version: String) {
             .drawBehind {
                 drawRect(
                     Brush.radialGradient(
-                        colors = listOf(accent.copy(alpha = 0.16f), Color.Transparent),
-                        center = Offset(size.width / 2f, 76.dp.toPx()),
-                        radius = 200.dp.toPx(),
+                        colors = listOf(accent.copy(alpha = 0.18f), Color.Transparent),
+                        center = Offset(size.width / 2f, 80.dp.toPx()),
+                        radius = 220.dp.toPx(),
                     ),
                 )
             }
-            .padding(top = 24.dp, bottom = 4.dp),
+            .padding(top = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (icon != null) {
@@ -171,14 +278,14 @@ private fun AboutHero(version: String) {
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(92.dp)
-                    .shadow(elevation = 14.dp, shape = iconShape, clip = true)
+                    .size(96.dp)
+                    .shadow(elevation = 16.dp, shape = iconShape, clip = true)
                     .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), iconShape),
             )
         } else {
             Box(
                 modifier = Modifier
-                    .size(92.dp)
+                    .size(96.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant, iconShape),
             )
         }
@@ -197,64 +304,66 @@ private fun AboutHero(version: String) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 40.dp),
         )
-        Spacer(Modifier.height(14.dp))
-        Row(
-            modifier = Modifier
-                .background(
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                    RoundedCornerShape(percent = 50),
-                )
-                .border(
-                    0.5.dp,
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
-                    RoundedCornerShape(percent = 50),
-                )
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = if (buildType == "release") "Version $version" else "Version $version \u00b7 $buildType",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
 @Composable
-private fun ChangesGroup(repo: String, tag: String, repoUrl: String) {
-    val context = LocalContext.current
-    var attempt by remember { mutableIntStateOf(0) }
-    val state by produceState<ChangesState>(ChangesState.Loading, repo, tag, attempt) {
-        value = ChangesState.Loading
-        value = loadChanges(repo, tag)?.let { ChangesState.Loaded(it) } ?: ChangesState.Failed
-    }
-
-    SettingsGroup(header = "What's in $tag") {
-        when (val s = state) {
-            is ChangesState.Loading -> ChangesLoadingRow()
-            is ChangesState.Failed -> SettingsRow(
-                icon = Icons.Rounded.Refresh,
-                title = "Couldn't load changes",
-                subtitle = "Check your connection, then tap to retry.",
-                onClick = { attempt++ },
+private fun InfoTile(icon: ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(TileShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
             )
-            is ChangesState.Loaded -> {
-                if (s.commits.isEmpty()) {
-                    SettingsRow(title = "No commits found for this version")
-                } else {
-                    s.commits.forEachIndexed { index, commit ->
-                        if (index > 0) RowDivider()
-                        CommitRow(commit) { context.openAboutLink(commit.url) }
-                    }
-                }
-            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        RowDivider()
-        SettingsRow(
-            icon = Icons.Rounded.Description,
-            title = "Full release notes",
-            onClick = { context.openAboutLink("$repoUrl/releases/tag/$tag") },
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun ActionTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        modifier = modifier
+            .clip(TileShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -283,8 +392,15 @@ private fun ChangesLoadingRow() {
 }
 
 @Composable
-private fun CommitRow(commit: ChangeCommit, onClick: () -> Unit) {
+private fun TimelineCommitRow(
+    commit: ChangeCommit,
+    isFirst: Boolean,
+    isLast: Boolean,
+    onClick: () -> Unit,
+) {
     val (type, title) = splitSubject(commit.subject)
+    val dotColor = MaterialTheme.colorScheme.primary
+    val lineColor = MaterialTheme.colorScheme.outline
     val meta = listOfNotNull(
         commit.author.ifBlank { null },
         if (commit.whenMillis > 0L) {
@@ -301,12 +417,32 @@ private fun CommitRow(commit: ChangeCommit, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .clickable(onClick = onClick)
-            .heightIn(min = 52.dp)
-            .padding(horizontal = ROW_INSET, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 14.dp),
     ) {
-        Column(Modifier.weight(1f)) {
+        Box(
+            modifier = Modifier
+                .width(18.dp)
+                .fillMaxHeight()
+                .drawBehind {
+                    val cx = size.width / 2f
+                    val dotY = 22.dp.toPx()
+                    drawLine(
+                        color = lineColor,
+                        start = Offset(cx, if (isFirst) dotY else 0f),
+                        end = Offset(cx, if (isLast) dotY else size.height),
+                        strokeWidth = 1.5.dp.toPx(),
+                    )
+                    drawCircle(color = dotColor, radius = 4.5.dp.toPx(), center = Offset(cx, dotY))
+                },
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 12.dp),
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
@@ -314,12 +450,12 @@ private fun CommitRow(commit: ChangeCommit, onClick: () -> Unit) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(5.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (type != null) Badge(type)
+                if (type != null) TypeChip(type)
                 if (meta.isNotEmpty()) {
                     Text(
                         text = meta,
@@ -332,14 +468,38 @@ private fun CommitRow(commit: ChangeCommit, onClick: () -> Unit) {
                 }
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(8.dp))
         Text(
             text = commit.sha.take(7),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 14.dp),
         )
     }
+}
+
+@Composable
+private fun TypeChip(type: String) {
+    val color = typeColor(type)
+    Text(
+        text = type,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(color.copy(alpha = 0.16f))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}
+
+private fun typeColor(type: String): Color = when (type) {
+    "feat" -> Color(0xFF30B455)
+    "fix" -> Color(0xFFE5484D)
+    "perf" -> Color(0xFF0A84FF)
+    "refactor" -> Color(0xFF9B5DE5)
+    "docs" -> Color(0xFF16A6B6)
+    else -> Color(0xFF8E8E93)
 }
 
 private fun splitSubject(subject: String): Pair<String?, String> {
@@ -348,7 +508,7 @@ private fun splitSubject(subject: String): Pair<String?, String> {
     return if (type in conventionalTypes) type to match.groupValues[2] else null to subject
 }
 
-private suspend fun loadChanges(repo: String, tag: String): List<ChangeCommit>? {
+private suspend fun loadChanges(repo: String, tag: String): ChangeLog? {
     val key = "$repo@$tag"
     changesCache[key]?.let { return it }
     val result = withContext(Dispatchers.IO) { runCatching { fetchChanges(repo, tag) }.getOrNull() }
@@ -367,18 +527,26 @@ private fun getJson(url: String): JsonElement? {
     return aboutJson.parseToJsonElement(body)
 }
 
+private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+
+private fun parseMillis(iso: String?): Long =
+    iso?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
+
 /**
  * Commits between the previous release and this one. A first release lists
  * its own history; a build whose tag is not published yet (a beta) lists the
  * latest commits instead.
  */
-private fun fetchChanges(repo: String, tag: String): List<ChangeCommit>? {
+private fun fetchChanges(repo: String, tag: String): ChangeLog? {
     val api = "https://api.github.com/repos/$repo"
-    val tags = (getJson("$api/releases?per_page=30") as? JsonArray)
-        ?.mapNotNull { (it as? JsonObject)?.get("tag_name")?.jsonPrimitive?.contentOrNull }
+    val releases = (getJson("$api/releases?per_page=30") as? JsonArray)
         .orEmpty()
+        .mapNotNull { it as? JsonObject }
+    val tags = releases.map { it.str("tag_name") }
     val at = tags.indexOf(tag)
     val previous = if (at >= 0) tags.getOrNull(at + 1) else null
+    val released = if (at >= 0) parseMillis(releases[at].str("published_at")) else 0L
+
     val element = when {
         previous != null -> getJson("$api/compare/$previous...$tag")
         at >= 0 -> getJson("$api/commits?sha=$tag&per_page=$MAX_COMMITS")
@@ -391,21 +559,22 @@ private fun fetchChanges(repo: String, tag: String): List<ChangeCommit>? {
         is JsonObject -> (element["commits"] as? JsonArray).orEmpty().reversed()
         else -> return null
     }
-    return items.mapNotNull { item ->
+    val commits = items.mapNotNull { item ->
         val obj = item as? JsonObject ?: return@mapNotNull null
-        val sha = obj["sha"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        val sha = obj.str("sha") ?: return@mapNotNull null
         val commit = obj["commit"] as? JsonObject ?: return@mapNotNull null
-        val subject = commit["message"]?.jsonPrimitive?.contentOrNull
-            .orEmpty().lineSequence().firstOrNull().orEmpty().trim()
+        val subject = commit.str("message").orEmpty().lineSequence().firstOrNull().orEmpty().trim()
         if (subject.isEmpty() || subject.startsWith("Merge ")) return@mapNotNull null
         val authorObj = commit["author"] as? JsonObject
-        val author = authorObj?.get("name")?.jsonPrimitive?.contentOrNull.orEmpty()
-        val millis = authorObj?.get("date")?.jsonPrimitive?.contentOrNull
-            ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
-            ?: 0L
-        val url = obj["html_url"]?.jsonPrimitive?.contentOrNull ?: "https://github.com/$repo/commit/$sha"
-        ChangeCommit(sha, subject, author, millis, url)
+        ChangeCommit(
+            sha = sha,
+            subject = subject,
+            author = authorObj?.str("name").orEmpty(),
+            whenMillis = parseMillis(authorObj?.str("date")),
+            url = obj.str("html_url") ?: "https://github.com/$repo/commit/$sha",
+        )
     }.take(MAX_COMMITS)
+    return ChangeLog(commits, released)
 }
 
 private fun Context.appIconBitmap(sizePx: Int): ImageBitmap? = runCatching {
