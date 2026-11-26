@@ -1625,7 +1625,10 @@ object AudioCache {
                     if (addon == null) DirectSourceGate.startedOnYouTube(id, upcoming.target)
                 }
             }
-            fetch(id, 0, PRELOAD_BYTES)
+            // Cek dan tulis harus di key yang sama dengan playback (mis. `#alt`),
+            // bukan di key polos milik salinan Opus untuk analisis Automix.
+            val uri = Uri.parse("zenith://watch?v=$id")
+            fetch(cacheKeyOf(uri), uri, 0, PRELOAD_BYTES, pinKey = true)
         }
     }
 

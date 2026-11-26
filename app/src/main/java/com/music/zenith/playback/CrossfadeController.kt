@@ -1375,7 +1375,9 @@ class CrossfadeController(
         // starts that much earlier, from arming.
         val beatMs = (plan.beatSeconds * 1000).roundToLong()
         val rampMs = if (beatMs > 0L) rampStepsFor(plan.outgoingPlaybackRate) * beatMs else 0L
-        if (remaining > ARM_LEAD_MS + rampMs) return
+        // Stream berikutnya belum siap di disk: arm lebih awal agar sempat buffering.
+        val armLeadMs = if (nextStreamReady(nextItem)) ARM_LEAD_MS else SLOW_STREAM_ARM_LEAD_MS
+        if (remaining > armLeadMs + rampMs) return
 
         begin(
             fade,
@@ -4080,6 +4082,9 @@ class CrossfadeController(
          * gets dropped.
          */
         const val ARM_LEAD_MS = 4_000L
+
+        /** Jeda arm Automix saat stream berikutnya belum siap; harus di bawah [ARM_TIMEOUT_MS]. */
+        const val SLOW_STREAM_ARM_LEAD_MS = 8_000L
 
         /**
          * The earliest, in wall-clock ms before the next item starts, that
