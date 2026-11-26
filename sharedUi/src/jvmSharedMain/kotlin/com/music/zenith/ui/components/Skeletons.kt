@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -495,7 +496,10 @@ fun LazyListScope.detailSkeleton(isArtist: Boolean) {
         return
     }
     item(key = "skeleton:detail:actions") {
-        Column(Modifier.graphicsLayer { alpha = 0.4f }) {
+        // Di atas kaki hero full-bleed (yang menjulur 88dp ke bawah tingginya),
+        // dengan jarak atas yang sama seperti baris tombol aslinya.
+        Column(Modifier.zIndex(1f).graphicsLayer { alpha = 0.4f }) {
+            Spacer(Modifier.height(18.dp))
             DetailActionsSkeleton(isArtist = false)
             Spacer(Modifier.height(18.dp))
         }
