@@ -4736,6 +4736,35 @@ private fun ZenithApp(
                                     )
                                 }
                                 }
+                                // Share sits left of the ••• while the pill is at rest, in
+                                // the same pill. Tapping ••• unfolds the bar, and Share folds
+                                // away with it: the overflow it opens already carries Share.
+                                val shareableRelease = isReleaseDetail &&
+                                    (detail.type == BrowseType.ALBUM || detail.type == BrowseType.PLAYLIST) &&
+                                    !detail.browseId.startsWith("local:") &&
+                                    !detail.browseId.startsWith(SPOTIFY_PAGE_PREFIX)
+                                ActionReveal(visible = !actionsOpen && shareableRelease) {
+                                    IconButton(
+                                        onClick = {
+                                            val url = if (detail.type == BrowseType.PLAYLIST) {
+                                                "https://music.youtube.com/playlist?list=${detail.browseId.removePrefix("VL")}"
+                                            } else {
+                                                "https://music.youtube.com/browse/${detail.browseId}"
+                                            }
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, url)
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, detail.title))
+                                        },
+                                    ) {
+                                        Icon(
+                                            SfIcons.Share,
+                                            contentDescription = stringResource(R.string.share),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 // The same ••• is both the unfold button at rest and the
                                 // overflow once open: the bar grows to its left, so it
                                 // simply slides into place while the xmark bounces in.
