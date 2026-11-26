@@ -455,8 +455,9 @@ fun LazyListScope.detailSkeleton(isArtist: Boolean) {
         item(key = "skeleton:detail:top") {
             Column(skeletonLeave().enterReveal(660).graphicsLayer { alpha = 0.4f }) {
                 // Setinggi judul "Top songs" asli, supaya baris di bawahnya tidak bergeser.
+                // Dari fontSize, karena lineHeight style ini tidak diisi.
                 val headingHeight = with(LocalDensity.current) {
-                    MaterialTheme.typography.headlineMedium.lineHeight.toDp()
+                    (MaterialTheme.typography.headlineMedium.fontSize * 1.3f).toDp()
                 }
                 Box(
                     modifier = Modifier
