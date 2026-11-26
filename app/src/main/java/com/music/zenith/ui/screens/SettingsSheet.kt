@@ -274,6 +274,7 @@ fun SettingsScreen(
     val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val canvasLiveBlurPanels by AppSettings.canvasLiveBlurPanels.collectAsStateWithLifecycle()
+    val canvasPanelDefaultBackdrop by AppSettings.canvasPanelDefaultBackdrop.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
     val lyricStrip by AppSettings.lyricStrip.collectAsStateWithLifecycle()
@@ -2017,6 +2018,21 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setCanvasLiveBlurPanels(!canvasLiveBlurPanels) },
+                )
+            }
+            val canvasPanelDefaultBackdropTitle = stringResource(R.string.canvas_panel_default_backdrop)
+            row(canvasPanelDefaultBackdropTitle, "canvas", "backdrop", "blur", "mesh", "lyrics", "queue", "player") {
+                SettingsRow(
+                    icon = SfIcons.Gradient,
+                    title = canvasPanelDefaultBackdropTitle,
+                    subtitle = stringResource(R.string.canvas_panel_default_backdrop_subtitle),
+                    trailing = {
+                        IosSwitch(
+                            checked = canvasPanelDefaultBackdrop,
+                            onCheckedChange = AppSettings::setCanvasPanelDefaultBackdrop,
+                        )
+                    },
+                    onClick = { AppSettings.setCanvasPanelDefaultBackdrop(!canvasPanelDefaultBackdrop) },
                 )
             }
             val legacyMeshGradientTitle = stringResource(R.string.legacy_mesh_gradient)
