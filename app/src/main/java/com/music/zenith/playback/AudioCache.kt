@@ -2067,8 +2067,8 @@ object AudioCache {
                     )
                 }
                 if (total > 0) recordContentLength(videoId, total)
-                val held = alignmentPrefixBytes(videoId)
-                if (held < MIN_ALIGNMENT_PREFIX_BYTES) {
+                val held = cache.getCachedBytes(videoId, 0, want)
+                if (!hasAnalysisCopy(videoId)) {
                     // The one line that says *this* fetch failed, as opposed to
                     // the read-ahead chatter around it: every cause below
                     // already logs its own message at debug, but nothing said
@@ -2083,7 +2083,7 @@ object AudioCache {
                 }
             } finally {
                 analysisHeadsInFlight.remove(videoId)
-                if (alignmentPrefixBytes(videoId) >= MIN_ALIGNMENT_PREFIX_BYTES) {
+                if (hasAnalysisCopy(videoId)) {
                     analysisHeadFailures.remove(videoId)
                     analysisHeadRetryAt.remove(videoId)
                 } else {
@@ -2120,6 +2120,13 @@ object AudioCache {
      * One resolve, one range, one encoding. [StreamResolver] has the length
      * already, from resolving the stream, so asking first costs nothing.
      */
+    /** Hanya salinan YouTube di key polos yang bisa dipakai analisis, bukan `#alt`. */
+    private fun hasAnalysisCopy(videoId: String): Boolean {
+        val want = analysisHeadWant[videoId] ?: MIN_ALIGNMENT_PREFIX_BYTES
+        val cached = cache.getCachedLength(videoId, 0, want).coerceAtLeast(0L)
+        return cached >= minOf(want, MIN_ALIGNMENT_PREFIX_BYTES)
+    }
+
     private fun analysisHeadSize(total: Long): Long =
         if (total > 0) minOf(total, MAX_ANALYSIS_TRACK_BYTES) else MAX_ANALYSIS_HEAD_BYTES
 
