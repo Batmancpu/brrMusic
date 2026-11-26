@@ -226,6 +226,24 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
      */
     private val triedRenditions = ConcurrentHashMap.newKeySet<String>()
 
+    /** When each track was last written off as unanalysable, for [retryDue]. */
+    private val failedAt = ConcurrentHashMap<String, Long>()
+
+    /** How many times each written-off track has been given another go. */
+    private val failureRetries = ConcurrentHashMap<String, Int>()
+
+    /**
+     * Whether a track written off earlier deserves another look: a failure can
+     * be down to something that passes — a copy still settling on disk, a phone
+     * that was throttled — so it is tried again after a pause, a bounded number
+     * of times, rather than being final for the whole session.
+     */
+    private fun retryDue(trackId: String): Boolean {
+        val at = failedAt[trackId] ?: return false
+        if (SystemClock.elapsedRealtime() - at < FAILURE_RETRY_DELAY_MS) return false
+        return (failureRetries[trackId] ?: 0) < MAX_FAILURE_RETRIES
+    }
+
     /**
      * How many times each rendition has been thrown off disk for being
      * undecodable, so a clean slate stays a one-off.
@@ -374,10 +392,14 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         if (trackId in running) return
         // A track measured in an earlier session costs nothing to restore, so
         // only the work below waits for the phone to cool.
-        if (overheated) {
-            note(trackId, "paused, phone is too hot")
+        // A hot phone sheds the heavy work, not all of it: the whole-track pass
+        // is tens of seconds of decoding and stays paused, but the opening of a
+        // track is a short decode and is all an incoming track is read for. So
+        // the track still gets its beat grid, and is refined once it cools.
+        val hot = overheated
+        if (hot) {
+            note(trackId, "hot phone: opening-only analysis")
             restoreOnce(trackId)
-            return
         }
         val analysisUri = analysisUriFor(trackId, uri)
         if (analysisUri == null) {
@@ -402,6 +424,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         // no-op for anything without a YouTube id — which is why a local file
         // was never queued for analysis at all. See [LocalAudioSource].
         val local = LocalAudioSource.isLocal(analysisUri)
+        // A file off the device has no light pass to fall back on.
+        if (hot && local) return
 
         // Complete *and* not already written off. A copy that decoded to
         // nothing is not a copy worth routing to: counting it as "fully cached"
@@ -418,9 +442,12 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 .filter { usableForAnalysis(analysisUri, it.key) }
                 .filter { it.isComplete && it.key !in badRenditions }
         }
-        val usableComplete = local || complete.isNotEmpty()
+        val usableComplete = !hot && (local || complete.isNotEmpty())
 
         val recorded = results[trackId]
+        // Nothing already recorded is revisited while hot: superseding a head
+        // result or retrying a failure both mean the heavy pass.
+        if (hot && recorded != null) return
         // Two things are worth superseding, and nothing else is. A provisional
         // head result, because replacing it with the whole-track pass is the
         // entire point of it — and a recorded failure, but only once a copy of
@@ -439,7 +466,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         val supersedable = when {
             recorded == null -> false
             trackId in provisional -> usableComplete
-            else -> !recorded.isUsable && untried
+            else -> !recorded.isUsable && (untried || (usableComplete && retryDue(trackId)))
         }
         if (recorded != null && !supersedable) {
             // One exception to returning empty-handed. A provisional result is a
@@ -450,12 +477,20 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             // rest, and a queued track reaches its own transition carrying an
             // entry-only estimate: no content end, no mix-out anchor, no vocal
             // mask, which is most of what the outgoing half of a blend reads.
-            if (trackId in provisional && !usableComplete) cache.requestAnalysisHead(analysisUri)
+            if (trackId in provisional && !usableComplete && !hot) cache.requestAnalysisHead(analysisUri)
             return
         }
         // The strike count belongs to the attempt that was given up on, not to
         // the track for the rest of the session; a reopened track starts level.
-        if (recorded != null && !recorded.isUsable) shortDecodes.remove(trackId)
+        if (recorded != null && !recorded.isUsable) {
+            shortDecodes.remove(trackId)
+            // Counted only when it is the pause that reopened the track, not a
+            // new copy of it turning up.
+            if (!untried && retryDue(trackId)) {
+                failureRetries.merge(trackId, 1, Int::plus)
+                failedAt.remove(trackId)
+            }
+        }
         // One head attempt per track: a partial container that will not parse
         // now is unlikely to parse ten ticks later, and retrying a decode every
         // 250ms would cost more than the analysis it is trying to bring
@@ -529,6 +564,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                         // stays: a partial analysis beats an empty one.
                         Log.w(TAG, "Giving up on $trackId after $MAX_SHORT_DECODE_ATTEMPTS short decodes")
                         if (trackId !in provisional) {
+                            failedAt[trackId] = SystemClock.elapsedRealtime()
                             results[trackId] = TrackAnalysis(
                                 status = TrackAnalysis.STATUS_READY,
                                 trackId = trackId,
@@ -567,6 +603,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                     // Recorded as ready-but-empty so a track that cannot be
                     // analysed is not retried on every tick for the rest of the
                     // session.
+                    failedAt[trackId] = SystemClock.elapsedRealtime()
                     results[trackId] = TrackAnalysis(
                         status = TrackAnalysis.STATUS_READY,
                         trackId = trackId,
@@ -1687,6 +1724,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         shortDecodes.clear()
         badRenditions.clear()
         triedRenditions.clear()
+        failedAt.clear()
+        failureRetries.clear()
         discarded.clear()
         tracker.release()
         vocals.release()
@@ -1735,6 +1774,10 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
         /** Refusals before a track is written off as truncated rather than still filling in. */
         const val MAX_SHORT_DECODE_ATTEMPTS = 3
+
+        /** Pause before a written-off track is given another go, and how many times. */
+        const val FAILURE_RETRY_DELAY_MS = 45_000L
+        const val MAX_FAILURE_RETRIES = 2
 
         /**
          * Clean-slate retries per rendition. One: a discard is worth doing when
