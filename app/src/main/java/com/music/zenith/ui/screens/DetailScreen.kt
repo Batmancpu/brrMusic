@@ -1826,7 +1826,18 @@ private fun PageBackground(
                 .zoomBackgroundOnPull(pull)
                 .offset { IntOffset(0, listState.headerTop(artHeight.toPx()).roundToInt()) }
                 // After the offset, so the flight lands on where the photo really is.
-                .coverFlightTarget(page.browseId, 0.dp, palette.wash),
+                .coverFlightTarget(page.browseId, 0.dp, palette.wash)
+                // Tepi foto di posisi piksel pecahan menyisakan satu baris setengah
+                // transparan. Strip warna halaman menutup jahitannya.
+                .drawWithContent {
+                    drawContent()
+                    val seam = 2.dp.toPx()
+                    drawRect(
+                        color = palette.wash,
+                        topLeft = Offset(0f, size.height - seam),
+                        size = androidx.compose.ui.geometry.Size(size.width, seam * 2f),
+                    )
+                },
         ) {
             SwapArt(
                 url = art,
