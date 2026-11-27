@@ -6737,6 +6737,9 @@ private fun ZenithApp(
             FrostedSortMenu(
                 hazeState = hazeState,
                 selected = songSort,
+                // Neither is worth a row where every track shares the value.
+                showArtist = detail?.type != BrowseType.ARTIST && detail?.type != BrowseType.ALBUM,
+                showAlbum = detail?.type != BrowseType.ALBUM,
                 onSelect = { option ->
                     detail?.browseId?.let { AppSettings.setDetailSongSort(it, option) }
                     songSortMenuOpen = false
@@ -7305,6 +7308,8 @@ private fun ActionReveal(visible: Boolean, bounce: Boolean = false, content: @Co
 private fun FrostedSortMenu(
     hazeState: HazeState,
     selected: SongSort,
+    showArtist: Boolean = true,
+    showAlbum: Boolean = true,
     onSelect: (SongSort) -> Unit,
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
@@ -7347,6 +7352,7 @@ private fun FrostedSortMenu(
         }
         SongSort.entries
             .filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
+            .filter { (it != SongSort.ARTIST_ASC || showArtist) && (it != SongSort.ALBUM_ASC || showAlbum) }
             .forEach { option ->
                 FrostedMenuRow(
                     label = option.localizedLabel(),
@@ -7520,6 +7526,8 @@ private fun SongSort.localizedLabel(): String = when (this) {
     SongSort.DEFAULT -> stringResource(R.string.sort_default)
     SongSort.TITLE_ASC -> stringResource(R.string.sort_title_ascending)
     SongSort.TITLE_DESC -> stringResource(R.string.sort_title_descending)
+    SongSort.ARTIST_ASC -> stringResource(R.string.sort_artist_ascending)
+    SongSort.ALBUM_ASC -> stringResource(R.string.sort_album_ascending)
     SongSort.DATE_ADDED_ASC -> stringResource(R.string.sort_date_added_oldest)
     SongSort.DATE_ADDED_DESC -> stringResource(R.string.sort_date_added)
 }

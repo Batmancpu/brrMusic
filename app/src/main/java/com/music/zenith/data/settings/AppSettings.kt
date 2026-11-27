@@ -519,6 +519,12 @@ enum class SongSort {
     DEFAULT,
     TITLE_ASC,
     TITLE_DESC,
+
+    /** Artist A to Z, then album, then the running order. */
+    ARTIST_ASC,
+
+    /** Album A to Z, then the running order — a release stays in its own track order. */
+    ALBUM_ASC,
     DATE_ADDED_ASC,
     DATE_ADDED_DESC,
 }

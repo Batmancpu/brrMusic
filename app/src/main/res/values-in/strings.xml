@@ -628,6 +628,8 @@
     <string name="sort_music">Urutkan musik</string>
     <string name="sort_title_ascending">Alfabet (A ke Z)</string>
     <string name="sort_title_descending">Alfabet (Z ke A)</string>
+    <string name="sort_artist_ascending">Artis (A ke Z)</string>
+    <string name="sort_album_ascending">Album (A ke Z)</string>
     <string name="sort_date_added">Tanggal ditambahkan (terbaru dahulu)</string>
     <string name="sort_date_modified">Tanggal diubah (terbaru dahulu)</string>
     <string name="use_all_audio_folders">Gunakan semua folder audio</string>
