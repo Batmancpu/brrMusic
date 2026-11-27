@@ -2043,11 +2043,15 @@ fun NowPlayingScreen(
         volume.dragging,
         lyricsOpen,
         queueOpen,
+        queueDragging,
         transitionHold,
     ) {
+        // Not while a finger is pulling the queue in: the deck leaving mid-drag
+        // changes the height the whole layout is measured against, and the
+        // sleeve and queue jump with it.
         if (!spotifyCanvasPresentation || !spotifyCanvasControlsOpen ||
             !spotifyCanvasAutoHide || !isPlaying || scrub.scrubbing || volume.dragging ||
-            lyricsOpen || queueOpen || transitionHold
+            lyricsOpen || queueOpen || queueDragging || transitionHold
         ) return@LaunchedEffect
         delay(SPOTIFY_CANVAS_CONTROLS_IDLE_MS)
         spotifyCanvasControlsOpen = false
@@ -4015,7 +4019,15 @@ fun NowPlayingScreen(
                                                 travel = bandBottom - bandTop -
                                                     HEADER_HEIGHT.toPx(),
                                                 slide = queueSlide,
-                                                onHold = { queueDragging = it },
+                                                onHold = { holding ->
+                                                    queueDragging = holding
+                                                    // A deck that is on its way out is brought back
+                                                    // and held for the whole drag, so it does not
+                                                    // snap in (or out) when the finger lets go.
+                                                    if (holding && spotifyCanvasPresentationNow) {
+                                                        spotifyCanvasControlsOpen = true
+                                                    }
+                                                },
                                                 onSettle = { open ->
                                                     if (open != queueOpen) {
                                                         haptics.play(
