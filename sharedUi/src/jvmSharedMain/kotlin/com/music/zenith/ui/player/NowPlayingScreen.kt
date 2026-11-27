@@ -4284,7 +4284,8 @@ fun NowPlayingScreen(
                         // from inside a layout. Writing the same answer back costs a
                         // comparison here and a whole frame if it is left to the snapshot
                         // to notice.
-                        val bannerSettled = !lyricsOpen || heroHeight == 0.dp
+                        val bannerSettled =
+                            !(lyricsOpen || queueOpen || queueDragging || collapseStarted) || heroHeight == 0.dp
                         if (bannerSettled && bannerBottom != heroHeight) {
                             SideEffect { heroHeight = bannerBottom }
                         }
