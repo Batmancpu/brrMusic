@@ -2530,7 +2530,11 @@ fun NowPlayingScreen(
         // tadi berada, bukan di-crop ke kotak banner yang lebih pendek.
         val held = if (still == null) dissolve.frame else null
         val image = still ?: held ?: return 0f
-        if (!heroMode || image.width >= image.height || playerBounds.width <= 0) return 0f
+        // Klip kotak/landscape sudah dibungkus kotak setinggi hero + offset, jadi still
+        // hasil tangkapannya sudah termasuk offset. Jangan dianggap still portrait.
+        if (!heroMode || image.width >= image.height || playerBounds.width <= 0 ||
+            (still != null && canvasAspect >= 1f)
+        ) return 0f
         val full = minOf(playerBounds.width * image.height / image.width.toFloat(), playerBounds.height.toFloat())
         // Selama frame dipudarkan, tinggi mengerut mulus ke banner, supaya cover lagu
         // baru tidak melompat ukuran begitu frame dilepas.
