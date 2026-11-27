@@ -168,6 +168,8 @@ import org.jetbrains.compose.resources.painterResource
 import com.music.zenith.data.canvas.AppleArtistArtRepository
 import com.music.zenith.data.canvas.releaseDateText
 import com.music.zenith.data.canvas.appleCatalogue
+import com.music.zenith.data.canvas.AlbumLogo
+import com.music.zenith.data.canvas.AlbumLogoRepository
 import com.music.zenith.data.canvas.ArtistSignature
 import com.music.zenith.data.canvas.ArtistSignatureRepository
 import com.music.zenith.data.canvas.SignatureInkTransformation
@@ -312,6 +314,10 @@ private const val LOGO_RETRY_DELAY_MS = 800L
 
 /** Vector signatures decode at this width so small files stay crisp laid out large. */
 private const val SVG_DECODE_WIDTH = 1600
+
+/** An album title logo's widest share of the page, and its tallest height in dp. */
+private const val ALBUM_LOGO_WIDTH = 0.7f
+private const val ALBUM_LOGO_MAX_HEIGHT_DP = 96
 
 private val CREDIT_SEPARATOR = Regex(""",\s|\s&\s|\s(?:x|and|feat\.?|ft\.?|with)\s""", RegexOption.IGNORE_CASE)
 
@@ -597,6 +603,33 @@ fun DetailScreen(
             ) ?: albumInfo
         }
     }
+    // Logo judul album dari API yang sama dengan signature artis. Menggantikan
+    // teks judul di header album bila ada; teks tetap jadi cadangan.
+    val albumLogoBase = ArtistSignatureRepository.effectiveBaseUrl(signatureEnabled, signatureBaseUrl)
+    val isCatalogAlbumPage = page.type == BrowseType.ALBUM && folder == null &&
+        !page.browseId.startsWith("local:")
+    var albumLogo by remember(page.browseId) {
+        mutableStateOf(
+            if (isCatalogAlbumPage) AlbumLogoRepository.cached(page.title, credit, albumLogoBase) else null,
+        )
+    }
+    LaunchedEffect(page.browseId, page.title, credit, songsLoading, albumLogoBase) {
+        if (!isCatalogAlbumPage || songsLoading || credit.isBlank()) return@LaunchedEffect
+        if (albumLogoBase == null) {
+            albumLogo = null
+            return@LaunchedEffect
+        }
+        val backoff = listOf(0L, 5_000L, 15_000L, 30_000L)
+        for (wait in backoff) {
+            if (wait > 0) delay(wait)
+            albumLogo = AlbumLogoRepository.cached(page.title, credit, albumLogoBase)
+                ?: AlbumLogoRepository.logoFor(page.title, credit, albumLogoBase)
+                ?: albumLogo
+            if (albumLogo != null || AlbumLogoRepository.settled(page.title, credit, albumLogoBase)) {
+                return@LaunchedEffect
+            }
+        }
+    }
 
     // An artist's clip comes with the same Apple lookup as its photograph.
     val artistVideo = appleArt?.videoUrl
@@ -706,6 +739,7 @@ fun DetailScreen(
                         pull = { (listOverscroll as? PullDownOverscrollEffect)?.pullDownPx ?: 0f },
                         albumGenre = albumInfo?.genre,
                         albumQuality = albumInfo?.audioQualityLabel(),
+                        albumLogo = albumLogo,
                         canvas = canvas,
                         songs = songs,
                         onPlay = { onPlay(songs) },
@@ -1104,6 +1138,8 @@ private fun ReleaseHeader(
     albumGenre: String? = null,
     /** "Hi-Res Lossless" / "Lossless" dari katalog Apple, setelah tahun di baris info. */
     albumQuality: String? = null,
+    /** Logo judul album dari API signature; menggantikan teks judul bila ada. */
+    albumLogo: AlbumLogo? = null,
     /** How far the list is pulled past its top right now, in px; the hero zooms by it. */
     pull: () -> Float = { 0f },
 ) {
@@ -1288,15 +1324,34 @@ private fun ReleaseHeader(
         }
 
         Spacer(Modifier.height(20.dp))
-        Text(
-            text = page.title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = palette.onBackground,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.flightReveal(150, afterFlight = fullBleed).padding(horizontal = HEADER_GUTTER),
-        )
+        var logoShown by remember(albumLogo?.imageUrl) { mutableStateOf(false) }
+        var logoFailed by remember(albumLogo?.imageUrl) { mutableStateOf(false) }
+        val titleLogo = albumLogo.takeIf { isCatalogAlbum && !logoFailed }
+        Box(contentAlignment = Alignment.Center) {
+            if (titleLogo != null) {
+                AlbumTitleLogo(
+                    logo = titleLogo,
+                    title = page.title,
+                    tint = palette.onBackground,
+                    onShown = { logoShown = true },
+                    onFailed = { logoFailed = true },
+                    modifier = Modifier
+                        .flightReveal(150, afterFlight = fullBleed)
+                        .padding(horizontal = HEADER_GUTTER),
+                )
+            }
+            if (titleLogo == null || !logoShown) {
+                Text(
+                    text = page.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = palette.onBackground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.flightReveal(150, afterFlight = fullBleed).padding(horizontal = HEADER_GUTTER),
+                )
+            }
+        }
         if (credit.isNotBlank()) {
             Spacer(Modifier.height(2.dp))
             Text(
@@ -1805,6 +1860,67 @@ private fun ArtistHeader(
                 .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
         )
     }
+}
+
+/**
+ * An album's title logo in place of its name. Vectors are tinted with the
+ * page's text colour (dark ink would vanish on a dark page); rasters keep
+ * their own pixels. Two retries on a dropped fetch, then [onFailed] so the
+ * caller puts the name back.
+ */
+@Composable
+private fun AlbumTitleLogo(
+    logo: AlbumLogo,
+    title: String,
+    tint: Color,
+    onShown: () -> Unit,
+    onFailed: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalPlatformContext.current
+    var attempt by remember(logo.imageUrl) { mutableIntStateOf(0) }
+    var failed by remember(logo.imageUrl) { mutableStateOf(false) }
+    val isSvg = logo.format == "svg"
+    val aspect = logo.aspect.coerceIn(0.4f, 6f)
+    val request = remember(logo.imageUrl, attempt) {
+        ImageRequest.Builder(context).data(logo.imageUrl).apply {
+            if (isSvg) {
+                size(SVG_DECODE_WIDTH, (SVG_DECODE_WIDTH / aspect).roundToInt())
+            } else {
+                size(coil3.size.Size.ORIGINAL)
+            }
+        }.build()
+    }
+    LaunchedEffect(failed) {
+        if (!failed) return@LaunchedEffect
+        if (attempt < LOGO_RETRIES) {
+            delay(LOGO_RETRY_DELAY_MS)
+            failed = false
+            attempt++
+        } else {
+            onFailed()
+        }
+    }
+    AsyncImage(
+        model = request,
+        contentDescription = title,
+        contentScale = ContentScale.Fit,
+        colorFilter = if (isSvg) ColorFilter.tint(tint) else null,
+        onState = { state ->
+            when (state) {
+                is AsyncImagePainter.State.Success -> onShown()
+                is AsyncImagePainter.State.Error -> failed = true
+                else -> Unit
+            }
+        },
+        modifier = modifier.layout { measurable, constraints ->
+            val widest = constraints.maxWidth * ALBUM_LOGO_WIDTH
+            val height = minOf(widest / aspect, ALBUM_LOGO_MAX_HEIGHT_DP.dp.toPx()).roundToInt()
+            val width = (height * aspect).roundToInt()
+            val placeable = measurable.measure(Constraints.fixed(width, height))
+            layout(width, height) { placeable.place(0, 0) }
+        },
+    )
 }
 
 /**
