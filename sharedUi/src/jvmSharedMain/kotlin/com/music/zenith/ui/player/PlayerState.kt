@@ -63,8 +63,9 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
     // which is the flicker. A different song keys differently and starts
     // clean; the same-titled-impostor case is guarded where the clip is
     // adopted, by [CanvasArtwork.matches].
-    var canvas by remember(song.title, song.artist) { mutableStateOf<CanvasArtwork?>(null) }
-    LaunchedEffect(song.videoId, song.albumName, canvasEnabled, canvasAllowedNow, canvasProviderOrder) {
+    val refresh = CanvasFadeTuning.refreshTick.intValue
+    var canvas by remember(song.title, song.artist, refresh) { mutableStateOf<CanvasArtwork?>(null) }
+    LaunchedEffect(song.videoId, song.albumName, canvasEnabled, canvasAllowedNow, canvasProviderOrder, refresh) {
         if (!canvasAllowedNow) {
             // Fitur hidup tapi data seluler tidak diizinkan: hanya klip yang
             // sudah utuh di cache disk yang diputar. Selain itu, still art.

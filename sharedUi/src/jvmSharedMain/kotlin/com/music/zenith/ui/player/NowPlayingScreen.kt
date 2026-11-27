@@ -3503,6 +3503,10 @@ fun NowPlayingScreen(
                         hideVolume = hideVolumeBar,
                         lyricStrip = lyricStripEnabled,
                         lyricStripAvailable = syncedLyricsEnabled,
+                        onClearCanvas = {
+                            PlayerPlatform.host.forgetCanvas(song)
+                            CanvasFadeTuning.refreshTick.intValue++
+                        },
                     )
                 }
 

@@ -142,6 +142,18 @@ object CanvasRepository {
     }
 
     /**
+     * Forgets everything stored for [song]: memory answers (every provider
+     * order), the on-disk index and the cached clip files. Next lookup starts clean.
+     */
+    @OptIn(UnstableApi::class)
+    fun forget(song: Song) {
+        if (song.videoId.isBlank()) return
+        val prefix = "song|${song.videoId}|"
+        synchronized(cache) { cache.keys.removeAll { it.startsWith(prefix) } }
+        CanvasCache.remove(CanvasIndex.removePrefix(prefix))
+    }
+
+    /**
      * The canvas for a release, for the album page's header artwork.
      *
      * A separate lookup rather than the first track's: the services hang
