@@ -216,8 +216,8 @@ private fun drawQualityBadge(
 ) {
     val (iconRes, label) = when (quality) {
         ShareQuality.ATMOS -> R.drawable.ic_dolby_atmos to context.getString(R.string.dolby_atmos)
-        ShareQuality.HI_RES -> R.drawable.ic_lossless_badge to context.getString(R.string.lyrics_share_hi_res)
-        ShareQuality.LOSSLESS -> R.drawable.ic_lossless_badge to context.getString(R.string.lossless)
+        ShareQuality.HI_RES -> R.drawable.ic_lossless_wave to context.getString(R.string.lyrics_share_hi_res)
+        ShareQuality.LOSSLESS -> R.drawable.ic_lossless_wave to context.getString(R.string.lossless)
     }
     val paint = type.body(BADGE_TEXT, BADGE_COLOR)
     val cap = android.graphics.Rect().also { paint.getTextBounds("L", 0, 1, it) }.height().toFloat()
