@@ -2110,6 +2110,17 @@ fun NowPlayingScreen(
         heroHeight.toPx() + CanvasFadeTuning.offset().coerceAtLeast(0f).dp.toPx()
     }
     heroClipGeometry.fade = if (clipPortrait) clipFadeFraction else HERO_FADE_FRACTION
+    val panelSnapKey = remember { BooleanArray(1) }
+    SideEffect {
+        val open = lyricsOpen || queueOpen
+        if (panelSnapKey[0] != open) {
+            panelSnapKey[0] = open
+            CanvasFadeTuning.layoutLabel.value =
+                "${if (open) "buka" else "tutup"} panel: asp=${"%.2f".format(canvasAspect)} " +
+                    "potret=$clipPortrait grow=$growBox live=$liveCanvasPanels " +
+                    "hero=${heroHeight.value.toInt()} off=${CanvasFadeTuning.offset().toInt()}"
+        }
+    }
     val statusBarTop = stableStatusBarInsets().asPaddingValues().calculateTopPadding()
     // What sits between the status bar and the artwork: the drag strip. Read
     // in three places — the strip itself,
@@ -3342,7 +3353,7 @@ fun NowPlayingScreen(
                                 CanvasContentMode.FIT_PORTRAIT
                             },
                             alignPortraitTop = clipPortrait,
-                            onAspectRatioChanged = { canvasAspect = it },
+                            onAspectRatioChanged = { if (it > 0f) canvasAspect = it },
                             portraitRevealBounds = playerBounds,
                             // Gone by the half, where [heroClip] lets it go — and the
                             // still sleeve collapsing over it takes exactly the cover
