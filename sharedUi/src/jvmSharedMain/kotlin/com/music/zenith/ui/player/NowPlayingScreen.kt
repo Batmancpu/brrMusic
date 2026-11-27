@@ -1969,6 +1969,9 @@ fun NowPlayingScreen(
     val spotifyCanvasFullscreen = spotifyCanvasOnPhone &&
         heroClip?.source == CanvasSource.SPOTIFY
     val spotifyCanvasPresentation = spotifyCanvasFullscreen && canvasRendered
+    // Read by the sleeve's drag handler without being one of its keys: the canvas
+    // flipping rendered/unrendered mid-drag must not restart that handler.
+    val spotifyCanvasPresentationNow by rememberUpdatedState(spotifyCanvasPresentation)
 
     // The clip's player, which outlives [heroClip] by the second half of a
     // collapse: mounted from the moment the player is asked back, and let go
@@ -3975,7 +3978,7 @@ fun NowPlayingScreen(
                             // half second lying across a list the finger was already
                             // scrolling.
                             .onGloballyPositioned { dismissBandSpace = it }
-                            .pointerInput(showAudioPipeline, showCast, panelScrolling, spotifyCanvasPresentation) {
+                            .pointerInput(showAudioPipeline, showCast, panelScrolling) {
                                 if (showAudioPipeline || showCast || panelScrolling) return@pointerInput
                                 awaitEachGesture {
                                     // Unconsumed on purpose, as the blanket version was:
@@ -3993,7 +3996,7 @@ fun NowPlayingScreen(
                                         queueSlide.floatValue > 0.01f
                                     // Canvas with its deck hidden: the queue cannot be
                                     // dragged in until the player is shown again.
-                                    val canvasHidden = spotifyCanvasPresentation &&
+                                    val canvasHidden = spotifyCanvasPresentationNow &&
                                         !spotifyCanvasControlsOpen && !panelUp
                                     val bandTop: Float
                                     val bandBottom: Float
@@ -6161,11 +6164,22 @@ private suspend fun AwaitPointerEventScope.dragQueueIn(
     val velocity = VelocityTracker()
     velocity.addPointerInputChange(drag)
     slide.floatValue = (pulled / travel).coerceIn(0f, 1f)
-    verticalDrag(drag.id) { change ->
-        velocity.addPointerInputChange(change)
-        pulled -= change.positionChange().y
-        slide.floatValue = (pulled / travel).coerceIn(0f, 1f)
-        change.consume()
+    // A cancelled gesture (the handler restarting mid-drag) must still hand the
+    // value back, or the settle stays parked and the queue freezes half-way in.
+    var completed = false
+    try {
+        verticalDrag(drag.id) { change ->
+            velocity.addPointerInputChange(change)
+            pulled -= change.positionChange().y
+            slide.floatValue = (pulled / travel).coerceIn(0f, 1f)
+            change.consume()
+        }
+        completed = true
+    } finally {
+        if (!completed) {
+            onHold(false)
+            onSettle(slide.floatValue >= QUEUE_CARRY_FRACTION)
+        }
     }
 
     // A flick decides on its own — it says "open" without asking the finger to
