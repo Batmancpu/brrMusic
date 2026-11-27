@@ -1772,6 +1772,11 @@ fun NowPlayingScreen(
     SideEffect { CanvasFadeTuning.fullBleed.value = fullBleedArt }
     // Canvas Zenith punya set setelan fade dan kontrol sendiri.
     SideEffect { CanvasFadeTuning.selectScope(canvas?.source == CanvasSource.ZENITH) }
+    SideEffect {
+        CanvasFadeTuning.sourceLabel.value = canvas?.let {
+            "${it.source.name} · ${it.url.substringAfter("://").substringBefore('/')}"
+        } ?: "tidak ada klip"
+    }
     // Full-bleed is a phone idiom. What the width has to rule out is a player
     // running a foot wider than the column of controls under it — edge to edge
     // meaning "a picture, and separately some controls" rather than "the

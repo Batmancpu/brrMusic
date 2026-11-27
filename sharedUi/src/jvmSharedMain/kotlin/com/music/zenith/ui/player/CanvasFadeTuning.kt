@@ -168,6 +168,9 @@ object CanvasFadeTuning {
     /** True saat klip yang tampil berasal dari Zenith; dipasang oleh NowPlayingScreen. */
     val zenith = mutableStateOf(false)
 
+    /** Sumber klip yang sedang tampil (provider dan host URL); hanya untuk panel debug. */
+    val sourceLabel = mutableStateOf("")
+
     /** Set milik scope yang sedang tidak aktif; ditukar masuk saat scope berganti. */
     private var parked = ZENITH_DEFAULTS
 
@@ -670,6 +673,7 @@ private fun CanvasTab(canvasActive: Boolean) {
     if (!canvasActive) {
         Caption("Klip Canvas tidak tampil di lagu ini. Nilai tetap bisa disetel dan dipakai saat klip muncul.")
     }
+    Caption("Sumber klip: ${CanvasFadeTuning.sourceLabel.value}")
     Caption(
         if (CanvasFadeTuning.zenith.value) "Scope: Canvas Zenith (setelan terpisah dari canvas lain)"
         else "Scope: Canvas lain (Zenith punya setelan sendiri)",
