@@ -6344,6 +6344,9 @@ class PlaybackService : MediaLibraryService() {
         val dsd = format?.codecs?.takeIf { it.startsWith("dsd") }
         val dsdRateHz = dsd?.removePrefix("dsd")?.toIntOrNull()?.times(44_100)
         val isLossless = dsd != null || NerdStats.isLosslessMime(format?.sampleMimeType)
+        // YouTube serves neither lossless nor Atmos, so a "YouTube" source name over
+        // either is a stale record or the id-length fallback, not the real source.
+        val beyondYouTube = isLossless || NerdStats.isDolbyAtmosMime(format?.sampleMimeType)
         val isRawPcm = NerdStats.isRawPcm(format?.sampleMimeType)
         val pcmDataRate = measured?.pcmBitrateKbps
 
@@ -6371,7 +6374,7 @@ class PlaybackService : MediaLibraryService() {
             com.music.zenith.data.settings.TrackQualityMemory.noteSeen(
                 track = mediaId,
                 lossless = isLossless,
-                sourceName = currentSourceName(mediaId, player.currentMediaItem, isLossless),
+                sourceName = currentSourceName(mediaId, player.currentMediaItem, beyondYouTube),
             )
         }
 
@@ -6384,7 +6387,7 @@ class PlaybackService : MediaLibraryService() {
             channels = measured?.channels,
             bitDepth = if (dsd != null) 1 else if (isLossless) measured?.bitDepth else null,
             claimed = NerdStats.declaredFormat(mediaId),
-            sourceName = currentSourceName(mediaId, player.currentMediaItem, isLossless),
+            sourceName = currentSourceName(mediaId, player.currentMediaItem, beyondYouTube),
             container = when (format?.containerMimeType) {
                 "audio/x-dsf" -> "DSF"
                 "audio/x-dff" -> "DFF"
