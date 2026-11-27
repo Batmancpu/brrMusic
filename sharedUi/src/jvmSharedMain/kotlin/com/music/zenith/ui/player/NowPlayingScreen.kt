@@ -4884,12 +4884,9 @@ fun NowPlayingScreen(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (!art.loaded && !canvasRendered && dissolve.outgoing == null && !dissolve.cutHold) {
-                                    Icon(
-                                        imageVector = ZenithIcons.MusicNote,
-                                        contentDescription = null,
-                                        tint = Color.White.copy(alpha = 0.35f),
+                                    ZenithCoverPlaceholder(
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(110.dp)
                                             .graphicsLayer {
                                                 val scale = 1f - 0.5f * p()
                                                 scaleX = scale
