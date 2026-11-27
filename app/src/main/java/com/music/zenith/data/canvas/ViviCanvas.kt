@@ -37,25 +37,39 @@ object ViviCanvas {
         val wantArtist = artist.normalizeForMatch()
         val wantAlbum = album?.normalizeForMatch()
 
-        val hit = index.firstOrNull { entry ->
+        // Judul persis lebih dulu, baru sebagian: "Starboy" tidak boleh kalah oleh entri
+        // lain yang kebetulan memuat kata itu.
+        fun find(exact: Boolean) = index.firstOrNull { entry ->
             val song = entry.song.stripTags().normalizeForMatch()
             val credited = entry.artist.normalizeForMatch()
             val listed = entry.album.normalizeForMatch()
             val titleOk = song.isNotBlank() &&
-                (wantTitle.contains(song) || song.contains(wantTitle))
+                if (exact) song == wantTitle else (wantTitle.contains(song) || song.contains(wantTitle))
             val artistOk = credited.isNotBlank() &&
                 (wantArtist.contains(credited) || credited.contains(wantArtist))
             val albumOk = listed.isBlank() || wantAlbum.isNullOrBlank() ||
                 listed == wantAlbum ||
                 entry.album.stripTags().normalizeForMatch() == album?.stripTags()?.normalizeForMatch()
             titleOk && artistOk && albumOk
-        } ?: return null
+        }
+        val hit = find(exact = true) ?: find(exact = false) ?: return null
 
         Log.d(TAG, "manifest hit for '${hit.song}' by '${hit.artist}'")
+        // Sudah dicocokkan di atas; judul dan artis yang sedang diputar dikembalikan supaya
+        // "(feat. ...)" di manifest tidak ditolak pengecekan ketat CanvasArtwork.matches.
         return CanvasArtwork(
             url = hit.url,
-            title = hit.song.stripTags(),
-            artist = hit.artist,
+            title = title,
+            artist = artist,
+true) ?: find(exact = false) ?: return null
+
+        Log.d(TAG, "manifest hit for '${hit.song}' by '${hit.artist}'")
+        // Sudah dicocokkan di atas; judul dan artis yang sedang diputar dikembalikan supaya
+        // "(feat. ...)" di manifest tidak ditolak pengecekan ketat CanvasArtwork.matches.
+        return CanvasArtwork(
+            url = hit.url,
+            title = title,
+            artist = artist,
             album = null,
             source = CanvasSource.VIVI,
         )
@@ -78,12 +92,10 @@ object ViviCanvas {
         Log.d(TAG, "manifest hit for album '${hit.album}' by '${hit.artist}'")
         return CanvasArtwork(
             url = hit.url,
-            title = hit.album,
-            artist = hit.artist,
-            album = hit.album,
-            source = CanvasSource.VIVI,
-        )
-    }
+            title = album,
+            artist = artist,
+            album = album,
+            source = CanvasSource.VIVI,   }
 
     private val NOISE = Regex(
         """\((?:from|official|lyrical|video|audio)[^)]*\)|\[[^]]*]|""" +
