@@ -29,6 +29,30 @@ internal actual val renderEffectBlurSupported: Boolean
 internal actual val fluidArtworkSupported: Boolean
     get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
+// PowerManager thermal status, API 29+.
+@Composable
+internal actual fun rememberDeviceThrottled(): androidx.compose.runtime.State<Boolean> {
+    val context = LocalContext.current
+    val throttled = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    DisposableEffect(context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return@DisposableEffect onDispose { }
+        }
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+            ?: return@DisposableEffect onDispose { }
+        throttled.value =
+            power.currentThermalStatus >= android.os.PowerManager.THERMAL_STATUS_SEVERE
+        val listener = android.os.PowerManager.OnThermalStatusChangedListener { status ->
+            throttled.value = status >= android.os.PowerManager.THERMAL_STATUS_SEVERE
+        }
+        power.addThermalStatusListener(listener)
+        onDispose { power.removeThermalStatusListener(listener) }
+    }
+    return throttled
+}
+
 internal actual class FluidArtworkShader actual constructor() {
     // Only built on 33+, and only ever referenced through this holder, so the
     // RuntimeShader class is never loaded on older devices.

@@ -511,7 +511,10 @@ internal fun rememberArtworkDissolve(
     val coverMixOnly by PlayerSettings.coverMixOnlyEffects.collectAsStateWithLifecycle()
     val dissolve = remember { ArtworkDissolve(art) }
     // Properti biasa, ditulis di komposisi sebelum retarget memulai transisi.
-    dissolve.fluidWanted = coverFluid && fluidArtworkSupported
+    // A throttled phone drops the shader morph for the light crossfade: two
+    // full-size AGSL layers per frame is what misses vsync once it is hot.
+    val throttled by rememberDeviceThrottled()
+    dissolve.fluidWanted = coverFluid && fluidArtworkSupported && !throttled
     // Dilakukan saat komposisi, sebelum sleeve membacanya: frame pertama cover
     // baru harus sudah punya cover lama di atasnya, kalau tidak frame itu
     // adalah cut-nya.
@@ -524,7 +527,8 @@ internal fun rememberArtworkDissolve(
         dissolve.punch = if (mixing && !skipOnlyLight) 0.35f else 1f
         // Next/prev biasa (termasuk crossfade next/prev): transisi ringan.
         // Automix/crossfade otomatis: efek penuh pilihan user.
-        dissolve.light = coverMixOnly && (!mixing || skipFadeMs > 0L) && dissolve.frame == null
+        dissolve.light = (throttled || (coverMixOnly && (!mixing || skipFadeMs > 0L))) &&
+            dissolve.frame == null
         // Spotify Canvas layar penuh sudah menahan frame terakhirnya sendiri
         // (fullFrame) dan memudarkannya ke layar lagu baru. Sleeve tidak boleh
         // ikut menyapu thumbnail lagu lama di bawahnya, kalau tidak thumbnail
@@ -568,6 +572,7 @@ internal fun rememberArtworkDissolve(
     val skipFadeNow by rememberUpdatedState(skipFadeMs)
     val mixFadeNow by rememberUpdatedState(mixFadeMs)
     val mixOnlyNow by rememberUpdatedState(coverMixOnly)
+    val throttledNow by rememberUpdatedState(throttled)
     LaunchedEffect(art) {
         if (dissolve.outgoing == null) {
             // Tanpa efek: cover lama ditahan sampai cover baru termuat dan
@@ -595,7 +600,8 @@ internal fun rememberArtworkDissolve(
         androidx.compose.runtime.withFrameNanos { }
         // Dinilai ulang saat animasi mulai: flag mix/crossfade bisa menyala sesaat
         // setelah cover berganti, dan cover baru sudah termuat di titik ini.
-        dissolve.light = mixOnlyNow && (!mixingNow || skipFadeNow > 0L) && dissolve.frame == null
+        dissolve.light = (throttledNow || (mixOnlyNow && (!mixingNow || skipFadeNow > 0L))) &&
+            dissolve.frame == null
         val duration = when {
             // Crossfade next/prev: cover lama melebur ke cover baru selama
             // audio-nya memudar, bukan lebih cepat atau lebih lambat.

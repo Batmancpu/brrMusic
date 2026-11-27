@@ -14,6 +14,13 @@ internal expect val renderEffectBlurSupported: Boolean
 internal expect val fluidArtworkSupported: Boolean
 
 /**
+ * True while the phone has asked apps to shed load (thermal status SEVERE or
+ * worse). The cover morph is optional eye candy, so it steps aside then.
+ */
+@androidx.compose.runtime.Composable
+internal expect fun rememberDeviceThrottled(): androidx.compose.runtime.State<Boolean>
+
+/**
  * The shader behind the fluid cover morph, one per layer. Built once and reused:
  * [effect] only sets uniforms and wraps the same shader, so nothing is compiled
  * or allocated per frame beyond the effect object itself.
