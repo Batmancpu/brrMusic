@@ -61,15 +61,6 @@ object ViviCanvas {
             url = hit.url,
             title = title,
             artist = artist,
-true) ?: find(exact = false) ?: return null
-
-        Log.d(TAG, "manifest hit for '${hit.song}' by '${hit.artist}'")
-        // Sudah dicocokkan di atas; judul dan artis yang sedang diputar dikembalikan supaya
-        // "(feat. ...)" di manifest tidak ditolak pengecekan ketat CanvasArtwork.matches.
-        return CanvasArtwork(
-            url = hit.url,
-            title = title,
-            artist = artist,
             album = null,
             source = CanvasSource.VIVI,
         )
@@ -95,7 +86,9 @@ true) ?: find(exact = false) ?: return null
             title = album,
             artist = artist,
             album = album,
-            source = CanvasSource.VIVI,   }
+            source = CanvasSource.VIVI,
+        )
+    }
 
     private val NOISE = Regex(
         """\((?:from|official|lyrical|video|audio)[^)]*\)|\[[^]]*]|""" +
