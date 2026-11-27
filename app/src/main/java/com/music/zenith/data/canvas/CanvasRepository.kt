@@ -120,7 +120,7 @@ object CanvasRepository {
         // Offline (no active network) the lookup cannot run at all, so the
         // clip already worked out in an earlier session is the only answer.
         if (AppSettings.meteredConnection.value != null) return null
-        return CanvasIndex.get("song|${song.videoId}")
+        return CanvasIndex.get(key)
     }
 
     /**
@@ -137,7 +137,7 @@ object CanvasRepository {
             order = AppSettings.canvasProviderOrder.value,
         )
         val artwork = synchronized(cache) { cache[key]?.artwork }
-            ?: CanvasIndex.get("song|${song.videoId}")
+            ?: CanvasIndex.get(key)
         return artwork?.takeIf { CanvasCache.isCached(it) }
     }
 
@@ -174,8 +174,8 @@ object CanvasRepository {
     private fun cacheKey(base: String, order: List<CanvasProvider>): String =
         "$base|order=${order.joinToString(",") { it.name }}"
 
-    /** The question without its priority order — what the on-disk index is keyed on. */
-    private fun baseKey(key: String): String = key.substringBeforeLast("|order=")
+    // The on-disk index is keyed on the full key (order included), so a clip
+    // found under another provider order is never reused as a fallback.
 
     private suspend fun resolve(
         key: String,
@@ -185,7 +185,7 @@ object CanvasRepository {
         synchronized(cache) {
             cache[key]?.let { if (it.reusable(withAlbum)) return@withLock it.artwork }
         }
-        val saved = CanvasIndex.get(baseKey(key))
+        val saved = CanvasIndex.get(key)
         // Offline there is nothing to ask. Answer from the on-disk index and
         // do not remember a miss: it would outlive the outage and keep the
         // canvas off after the network is back.
@@ -193,7 +193,7 @@ object CanvasRepository {
         // A lookup that fails online (no internet behind the Wi-Fi, provider
         // down) falls back to the clip that was found before.
         val found = withContext(Dispatchers.IO) { lookUp() } ?: saved
-        if (found != null) CanvasIndex.put(baseKey(key), found)
+        if (found != null) CanvasIndex.put(key, found)
         synchronized(cache) { cache[key] = Entry(found, withAlbum) }
         found
     }
