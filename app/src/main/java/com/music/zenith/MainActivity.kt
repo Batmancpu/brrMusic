@@ -1880,6 +1880,33 @@ private fun ZenithApp(
         }
     }
 
+    /**
+     * Shows the video's picture over the song already playing, instead of
+     * swapping the queue row for the video's own stream: the catalogue audio
+     * stays (its quality, synced lyrics, queue place and Automix) and nothing
+     * is re-resolved, re-buffered or re-aligned. See [MusicVideoEngine.showPictureOver].
+     */
+    suspend fun switchToPicture(song: Song) {
+        val c = controller ?: return
+        if (c.currentMediaItem?.mediaId != song.videoId || song.isVideo) return
+        // "Covers, not video" leaves no surface to draw on: the old swap it is.
+        if (AppSettings.stillVideoCovers.value) {
+            switchToVideo(song, pauseWhileResolving = false)
+            return
+        }
+        val video = runCatching { YtMusicRepository.resolveVideo(song) }.getOrNull()
+        val stillCurrent = c.currentMediaItem?.mediaId == song.videoId
+        if (video == null || video.videoId == song.videoId) {
+            TrackLog.w("Player", "video picture found no distinct video", song.videoId)
+            if (song.videoId !in missingVersions) missingVersions += song.videoId
+            if (stillCurrent) showQueueNotice(versionContext.getString(R.string.no_video_version))
+            return
+        }
+        if (!stillCurrent) return
+        TrackLog.d("Player", "video picture over audio: '${video.title}' (${video.videoId})", song.videoId)
+        MusicVideoEngine.showPictureOver(song.videoId, video.videoId)
+    }
+
     fun playFrom(
         allSongs: List<Song>,
         allIndex: Int,
@@ -5366,7 +5393,8 @@ private fun ZenithApp(
                 AppSettings.smartVersionAlignment.value &&
                     VersionAudioAligner.getCachedOffsetMs(song.videoId, targetId) == null &&
                     YtMusicRepository.versionTimeMap(song.videoId, targetId) == null
-            val menuIsAudioVersion = if (optimisticVersionSong != null) {
+            val pictureCompanions by MusicVideoEngine.companions.collectAsStateWithLifecycle()
+            val menuIsAudioVersion = song.videoId !in pictureCompanions && if (optimisticVersionSong != null) {
                 !optimisticVersionSong!!.isVideo
             } else {
                 !song.isVideo && convertedVideoId != song.videoId
@@ -5391,6 +5419,8 @@ private fun ZenithApp(
                     val originalAudio = convertedFromAudio
                     when {
                         c == null -> Unit
+                        song.videoId in MusicVideoEngine.companions.value ->
+                            MusicVideoEngine.hidePictureOver(song.videoId)
                         original != null && (
                             convertedAudioId == song.videoId ||
                                 convertedAudioId == versionEffectiveSong.videoId ||
@@ -5431,21 +5461,7 @@ private fun ZenithApp(
                             scope.launch { switchToMusicOnly(song, pauseWhileResolving = false) }
                         }
                         else -> {
-                            val cached = YtMusicRepository.cachedVideoVersion(song.videoId)
-                                ?: YtMusicRepository.cachedVideoVersion(versionEffectiveSong.videoId)
-                            if (cached != null && cached.videoId != song.videoId &&
-                                !versionAlignmentPending(cached.videoId)
-                            ) {
-                                optimisticVersionSong = cached.copy(
-                                    queueTier = song.queueTier,
-                                    queueEntryId = song.queueEntryId,
-                                    radioName = song.radioName,
-                                    playbackSource = song.playbackSource,
-                                    playbackSourceType = song.playbackSourceType,
-                                    playbackSourceId = song.playbackSourceId,
-                                )
-                            }
-                            scope.launch { switchToVideo(song, pauseWhileResolving = false) }
+                            scope.launch { switchToPicture(song) }
                         }
                     }
                 }
