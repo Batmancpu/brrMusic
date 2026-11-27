@@ -4019,6 +4019,12 @@ fun NowPlayingScreen(
                                                 travel = bandBottom - bandTop -
                                                     HEADER_HEIGHT.toPx(),
                                                 slide = queueSlide,
+                                                // Checked when the finger crosses the slop, not only at
+                                                // the press: a deck that auto-hid in between still
+                                                // refuses the drag.
+                                                allowed = {
+                                                    !(spotifyCanvasPresentationNow && !spotifyCanvasControlsOpen)
+                                                },
                                                 onHold = { holding ->
                                                     queueDragging = holding
                                                     // A deck that is on its way out is brought back
@@ -6158,6 +6164,7 @@ private suspend fun AwaitPointerEventScope.dragQueueIn(
     slide: MutableFloatState,
     onHold: (Boolean) -> Unit,
     onSettle: (Boolean) -> Unit,
+    allowed: () -> Boolean = { true },
 ) {
     // A block with nowhere to travel — a player not yet measured — would divide
     // by nothing and snap the queue open on the first pixel of movement.
@@ -6165,7 +6172,7 @@ private suspend fun AwaitPointerEventScope.dragQueueIn(
 
     var pulled = 0f
     val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
-        if (overSlop < 0f) {
+        if (overSlop < 0f && allowed()) {
             pulled = -overSlop
             change.consume()
         }
