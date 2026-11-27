@@ -155,7 +155,7 @@ object AiLyricsTranslator {
                 val run = runProvider(cfg, chunk, target, ignoreCooldown = false)
                 if (run.answer != null) {
                     answer = run.answer
-                    lastUsed.value = "${cfg.provider.label} · ${cfg.effectiveModel}"
+                    lastUsed.value = "${cfg.provider.label} · ${usedModel[cfg.provider] ?: cfg.effectiveModel}"
                     break
                 }
             }
@@ -180,14 +180,117 @@ object AiLyricsTranslator {
             ProviderTest(cfg.provider, ok, detail)
         }
 
+    class ModelList(val models: List<String>, val error: String?)
+    class KeyTest(val keyNumber: Int, val ok: Boolean, val detail: String)
+
+    private val autoModels = ConcurrentHashMap<String, Pair<String, Long>>()
+    private val usedModel = ConcurrentHashMap<AiProvider, String>()
+    private val NOT_FOR_TEXT = listOf(
+        "embed", "whisper", "tts", "guard", "orpheus", "imagen", "veo", "image",
+        "audio", "live", "aqa", "robotics", "moderation", "rerank", "transcribe",
+    )
+
+    /** The models this key can use, straight from the provider, best choice first. */
+    suspend fun listModels(provider: AiProvider, key: String): ModelList {
+        val request = Request.Builder().header("Accept", "application/json").apply {
+            when (provider) {
+                AiProvider.GEMINI ->
+                    url("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000")
+                        .header("x-goog-api-key", key)
+                AiProvider.GROQ ->
+                    url("https://api.groq.com/openai/v1/models").header("Authorization", "Bearer $key")
+                AiProvider.OPENROUTER ->
+                    url("https://openrouter.ai/api/v1/models").header("Authorization", "Bearer $key")
+            }
+        }.get().build()
+        val http = try {
+            client.newCall(request).awaitResult()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: IOException) {
+            return ModelList(emptyList(), "network ${error.javaClass.simpleName}")
+        }
+        if (http.code !in 200..299) return ModelList(emptyList(), httpReason(http))
+        val ids = runCatching { parseModels(provider, http.body) }.getOrNull().orEmpty()
+        return if (ids.isEmpty()) ModelList(emptyList(), "no models returned") else ModelList(ids, null)
+    }
+
+    /** Checks every key of one provider: valid, and does the chosen model answer. */
+    suspend fun testKeys(cfg: AiProviderConfig): List<KeyTest> = cfg.keys.mapIndexed { index, key ->
+        val number = index + 1
+        val list = listModels(cfg.provider, key)
+        val listError = list.error
+        if (listError != null) return@mapIndexed KeyTest(number, false, listError)
+        val model = cfg.model.trim().ifEmpty { list.models.first() }
+        when (val outcome = requestOnce(cfg.provider, model, key, listOf("Hello, how are you?"), "Indonesian (id)")) {
+            is Outcome.Ok -> KeyTest(number, true, "OK · ${list.models.size} models · $model")
+            is Outcome.Fail -> KeyTest(number, false, "${outcome.reason} · $model")
+        }
+    }
+
+    private fun httpReason(http: HttpResult): String = when {
+        http.code == 401 || http.code == 403 ||
+            (http.code == 400 && http.body.contains("API key", true)) -> "HTTP ${http.code} key rejected"
+        http.code == 429 -> "HTTP 429 rate limited"
+        http.code == 402 -> "HTTP 402 no credit"
+        else -> "HTTP ${http.code}"
+    }
+
+    private fun parseModels(provider: AiProvider, body: String): List<String> {
+        val root = json.parseToJsonElement(body).jsonObject
+        val ids = when (provider) {
+            AiProvider.GEMINI -> root["models"]!!.jsonArray
+                .filter { model ->
+                    model.jsonObject["supportedGenerationMethods"]?.jsonArray
+                        ?.any { it.jsonPrimitive.contentOrNull == "generateContent" } == true
+                }
+                .mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull?.removePrefix("models/") }
+            else -> root["data"]!!.jsonArray
+                .mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
+        }
+        return ids
+            .filterNot { id -> NOT_FOR_TEXT.any { id.contains(it, ignoreCase = true) } }
+            .distinct()
+            .sortedWith(compareBy<String> { rank(provider, it) }.thenByDescending { it })
+    }
+
+    /** Lower sorts first: the model a translation should reach for before the rest. */
+    private fun rank(provider: AiProvider, id: String): Int = when (provider) {
+        AiProvider.GEMINI -> when {
+            id == "gemini-flash-latest" -> 0
+            id.contains("flash") && !id.contains("lite") -> 1
+            id.contains("flash") -> 2
+            else -> 3
+        }
+        AiProvider.GROQ -> when {
+            id == "llama-3.3-70b-versatile" -> 0
+            id.contains("llama") -> 1
+            else -> 2
+        }
+        AiProvider.OPENROUTER -> when {
+            id == "openrouter/free" -> 0
+            id.endsWith(":free") -> 1
+            else -> 2
+        }
+    }
+
+    /** The model to use when none is chosen: the best one this key can actually see. */
+    private suspend fun autoModel(provider: AiProvider, key: String): String {
+        val id = "${provider.id}:${key.hashCode()}"
+        val cached = autoModels[id]
+        if (cached != null && cached.second > System.currentTimeMillis()) return cached.first
+        val picked = listModels(provider, key).models.firstOrNull() ?: return provider.defaultModel
+        autoModels[id] = picked to (System.currentTimeMillis() + 6 * HOUR)
+        return picked
+    }
+
     private suspend fun runProvider(
         cfg: AiProviderConfig,
         texts: List<String>,
         target: String,
         ignoreCooldown: Boolean,
     ): ProviderRun {
-        val model = cfg.effectiveModel
-        val providerId = "${cfg.provider.id}:$model"
+        val providerId = "${cfg.provider.id}:${cfg.model.trim().ifEmpty { "auto" }}"
         if (!ignoreCooldown && (providerBlocked[providerId] ?: 0L) > System.currentTimeMillis()) {
             return ProviderRun(cfg.provider, null, emptyList())
         }
@@ -198,9 +301,11 @@ object AiLyricsTranslator {
                 attempts += Attempt(index + 1, "cooldown")
                 continue
             }
+            val model = cfg.model.trim().ifEmpty { autoModel(cfg.provider, key) }
             when (val outcome = request(cfg.provider, model, key, texts, target)) {
                 is Outcome.Ok -> {
                     attempts += Attempt(index + 1, null)
+                    usedModel[cfg.provider] = model
                     return ProviderRun(cfg.provider, outcome.answer, attempts)
                 }
                 is Outcome.Fail -> {

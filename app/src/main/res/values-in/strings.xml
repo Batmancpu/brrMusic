@@ -1282,7 +1282,23 @@
 
     <string name="ai_provider_model_title">Model %1$s</string>
 
-    <string name="ai_provider_model_message">Kosongkan untuk memakai model bawaan.</string>
+    <string name="ai_provider_model_message">Daftarnya diambil langsung dari API key kamu.</string>
+
+    <string name="ai_provider_model_auto">Otomatis</string>
+
+    <string name="ai_provider_model_auto_detail">Model terbaik yang bisa dipakai API key kamu</string>
+
+    <string name="ai_provider_test">Tes API key</string>
+
+    <string name="ai_provider_test_subtitle">Cek tiap key dan apakah modelnya menjawab.</string>
+
+    <string name="ai_model_search">Cari model</string>
+
+    <string name="ai_model_loading">Mengambil daftar model…</string>
+
+    <string name="ai_model_retry">Coba lagi</string>
+
+    <string name="ai_model_none">Tidak ada model yang cocok</string>
 
     <string name="ai_provider_get_key">Dapatkan key di %1$s</string>
 

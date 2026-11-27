@@ -23,6 +23,7 @@ import com.music.zenith.data.lyrics.AiLyricsTranslator
 import com.music.zenith.data.lyrics.AiProvider
 import com.music.zenith.data.lyrics.AiProviderConfig
 import com.music.zenith.data.settings.AppSettings
+import com.music.zenith.ui.components.AiModelDialog
 import com.music.zenith.ui.components.ChoiceAlert
 import com.music.zenith.ui.components.IosSwitch
 import com.music.zenith.ui.components.TextValueAlert
@@ -148,6 +149,18 @@ private fun ProviderGroup(
     onOpenDialog: (AiTranslateDialog) -> Unit,
 ) {
     val provider = cfg.provider
+    val scope = rememberCoroutineScope()
+    var testing by remember(provider) { mutableStateOf(false) }
+    var results by remember(provider) { mutableStateOf<List<AiLyricsTranslator.KeyTest>?>(null) }
+    val keyResults = results
+    val testSubtitle = when {
+        testing -> stringResource(R.string.ai_translate_testing)
+        keyResults == null -> stringResource(R.string.ai_provider_test_subtitle)
+        keyResults.isEmpty() -> stringResource(R.string.ai_provider_keys_none)
+        else -> keyResults.joinToString("\n") {
+            "${if (it.ok) "✓" else "✗"} #${it.keyNumber}: ${it.detail}"
+        }
+    }
     SettingsGroup(
         header = stringResource(R.string.ai_provider_header, provider.label, priority),
         footer = stringResource(R.string.ai_provider_get_key, keyUrl(provider)),
@@ -178,8 +191,33 @@ private fun ProviderGroup(
         SettingsRow(
             icon = SfIcons.Tune,
             title = stringResource(R.string.ai_provider_model),
-            subtitle = cfg.effectiveModel,
+            subtitle = if (cfg.model.isBlank()) {
+                stringResource(R.string.ai_provider_model_auto)
+            } else {
+                cfg.model
+            },
             onClick = { onOpenDialog(AiTranslateDialog.Model(provider)) },
+        )
+        RowDivider()
+        SettingsRow(
+            icon = SfIcons.CloudDone,
+            title = stringResource(R.string.ai_provider_test),
+            subtitle = testSubtitle,
+            enabled = !testing,
+            onClick = {
+                if (cfg.keys.isEmpty()) {
+                    results = emptyList()
+                } else {
+                    scope.launch {
+                        testing = true
+                        try {
+                            results = AiLyricsTranslator.testKeys(cfg)
+                        } finally {
+                            testing = false
+                        }
+                    }
+                }
+            },
         )
     }
 }
@@ -243,23 +281,10 @@ fun AiTranslateDialogHost(
             )
         }
 
-        is AiTranslateDialog.Model -> {
-            val provider = which.provider
-            val current = config.of(provider).model
-            var input by remember(provider) { mutableStateOf(current) }
-            TextValueAlert(
-                hazeState = hazeState,
-                title = stringResource(R.string.ai_provider_model_title, provider.label),
-                message = stringResource(R.string.ai_provider_model_message),
-                placeholder = provider.defaultModel,
-                value = input,
-                onValueChange = { input = it },
-                onSave = {
-                    AppSettings.setAiProviderModel(provider, input)
-                    onDismiss()
-                },
-                onDismiss = onDismiss,
-            )
-        }
+        is AiTranslateDialog.Model -> AiModelDialog(
+            hazeState = hazeState,
+            provider = which.provider,
+            onDismiss = onDismiss,
+        )
     }
 }
