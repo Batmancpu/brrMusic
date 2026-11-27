@@ -95,6 +95,7 @@ object CanvasRepository {
                 lookup = { provider ->
                     when (provider) {
                         CanvasProvider.ZENITH -> CommunityCanvas.search(title, artist, album)
+                        CanvasProvider.VIVI -> ViviCanvas.search(title, artist, album)
                         CanvasProvider.APPLE_MUSIC -> AppleMusicCanvas.search(title, artist, album)
                         CanvasProvider.TIDAL -> TidalCanvas.search(title, artist, album)
                         CanvasProvider.SPOTIFY -> SpotifyCanvas.search(title, artist, album)
@@ -173,6 +174,7 @@ object CanvasRepository {
                 lookup = { provider ->
                     when (provider) {
                         CanvasProvider.ZENITH -> CommunityCanvas.searchAlbum(name, credit)
+                        CanvasProvider.VIVI -> ViviCanvas.searchAlbum(name, credit)
                         CanvasProvider.APPLE_MUSIC -> AppleMusicCanvas.searchAlbum(name, credit)
                         CanvasProvider.TIDAL -> TidalCanvas.searchAlbum(name, credit)
                         CanvasProvider.SPOTIFY -> SpotifyCanvas.searchAlbum(name, credit)

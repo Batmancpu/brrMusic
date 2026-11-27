@@ -1771,7 +1771,11 @@ fun NowPlayingScreen(
     val fullBleedArt = fullBleedSetting && !(videoMode && canvas == null)
     SideEffect { CanvasFadeTuning.fullBleed.value = fullBleedArt }
     // Canvas Zenith punya set setelan fade dan kontrol sendiri.
-    SideEffect { CanvasFadeTuning.selectScope(canvas?.source == CanvasSource.ZENITH) }
+    SideEffect {
+        CanvasFadeTuning.selectScope(
+            canvas?.source == CanvasSource.ZENITH || canvas?.source == CanvasSource.VIVI,
+        )
+    }
     SideEffect {
         CanvasFadeTuning.sourceLabel.value = canvas?.let {
             "${it.source.name} · ${it.url.substringAfter("://").substringBefore('/')}"
