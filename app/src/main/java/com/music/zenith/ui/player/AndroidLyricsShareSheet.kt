@@ -438,7 +438,7 @@ private const val PREVIEW_SCREEN_SHARE = 0.3f
 private const val PREVIEW_REST_MS = 1_200L
 
 /** The black over the clip in the preview: the export's 60% dim. */
-private const val CLIP_SCRIM = 0.4f
+private const val CLIP_SCRIM = 0.62f
 
 /** About the blur the export draws, at the preview's size. */
 private val PREVIEW_BLUR = 10.dp
