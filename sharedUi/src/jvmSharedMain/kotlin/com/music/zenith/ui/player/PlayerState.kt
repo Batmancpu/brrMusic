@@ -511,10 +511,7 @@ internal fun rememberArtworkDissolve(
     val coverMixOnly by PlayerSettings.coverMixOnlyEffects.collectAsStateWithLifecycle()
     val dissolve = remember { ArtworkDissolve(art) }
     // Properti biasa, ditulis di komposisi sebelum retarget memulai transisi.
-    // A throttled phone drops the shader morph for the light crossfade: two
-    // full-size AGSL layers per frame is what misses vsync once it is hot.
-    val throttled by rememberDeviceThrottled()
-    dissolve.fluidWanted = coverFluid && fluidArtworkSupported && !throttled
+    dissolve.fluidWanted = coverFluid && fluidArtworkSupported
     // Dilakukan saat komposisi, sebelum sleeve membacanya: frame pertama cover
     // baru harus sudah punya cover lama di atasnya, kalau tidak frame itu
     // adalah cut-nya.
@@ -527,8 +524,7 @@ internal fun rememberArtworkDissolve(
         dissolve.punch = if (mixing && !skipOnlyLight) 0.35f else 1f
         // Next/prev biasa (termasuk crossfade next/prev): transisi ringan.
         // Automix/crossfade otomatis: efek penuh pilihan user.
-        dissolve.light = (throttled || (coverMixOnly && (!mixing || skipFadeMs > 0L))) &&
-            dissolve.frame == null
+        dissolve.light = coverMixOnly && (!mixing || skipFadeMs > 0L) && dissolve.frame == null
         // Spotify Canvas layar penuh sudah menahan frame terakhirnya sendiri
         // (fullFrame) dan memudarkannya ke layar lagu baru. Sleeve tidak boleh
         // ikut menyapu thumbnail lagu lama di bawahnya, kalau tidak thumbnail
@@ -572,7 +568,6 @@ internal fun rememberArtworkDissolve(
     val skipFadeNow by rememberUpdatedState(skipFadeMs)
     val mixFadeNow by rememberUpdatedState(mixFadeMs)
     val mixOnlyNow by rememberUpdatedState(coverMixOnly)
-    val throttledNow by rememberUpdatedState(throttled)
     LaunchedEffect(art) {
         if (dissolve.outgoing == null) {
             // Tanpa efek: cover lama ditahan sampai cover baru termuat dan
@@ -600,8 +595,7 @@ internal fun rememberArtworkDissolve(
         androidx.compose.runtime.withFrameNanos { }
         // Dinilai ulang saat animasi mulai: flag mix/crossfade bisa menyala sesaat
         // setelah cover berganti, dan cover baru sudah termuat di titik ini.
-        dissolve.light = (throttledNow || (mixOnlyNow && (!mixingNow || skipFadeNow > 0L))) &&
-            dissolve.frame == null
+        dissolve.light = mixOnlyNow && (!mixingNow || skipFadeNow > 0L) && dissolve.frame == null
         val duration = when {
             // Crossfade next/prev: cover lama melebur ke cover baru selama
             // audio-nya memudar, bukan lebih cepat atau lebih lambat.
@@ -620,12 +614,22 @@ internal fun rememberArtworkDissolve(
         if (mixingNow && skipFadeNow <= 0L && dissolve.frame == null &&
             PlayerSettings.smartMixView.value != null
         ) {
-            kotlinx.coroutines.flow.combine(
-                PlayerSettings.smartMixProgress,
-                snapshotFlow { mixingNow },
-            ) { p, m -> p to m }.first { (p, m) ->
-                dissolve.progress = p.coerceIn(0f, 1f)
-                p >= 0.999f || !m
+            // The blend's progress arrives in ticks from the audio side, on a
+            // clock of their own and bunched up whenever the main thread is busy
+            // mixing. Written straight into [progress], the cover morph stepped
+            // with them. Chased once per frame instead, so it moves at the
+            // display's rate however the ticks land.
+            var lastFrame = androidx.compose.runtime.withFrameNanos { it }
+            while (true) {
+                val now = androidx.compose.runtime.withFrameNanos { it }
+                val dt = ((now - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
+                lastFrame = now
+                if (!mixingNow) break
+                val target = PlayerSettings.smartMixProgress.value.coerceIn(0f, 1f)
+                val k = 1f - kotlin.math.exp(-dt * MIX_PROGRESS_CHASE_PER_SEC)
+                dissolve.progress =
+                    (dissolve.progress + (target - dissolve.progress) * k).coerceIn(0f, 1f)
+                if (target >= 0.999f && dissolve.progress >= 0.995f) break
             }
             dissolve.progress = 1f
             dissolve.finish()
@@ -655,6 +659,9 @@ internal class HeldClipFrame(val portrait: Boolean, val bannerHeightPx: Float, v
 /** Selama progres sapuan masih di bawah ini, cover lama dianggap masih penuh terlihat. */
 private const val RETARGET_KEEP_PROGRESS = 0.3f
 private const val MIX_DISSOLVE_MS = 1_800
+
+/** How quickly the cover morph catches up with the blend's published progress, per second. */
+private const val MIX_PROGRESS_CHASE_PER_SEC = 14f
 private const val SKIP_DISSOLVE_MS = 950
 private const val FLUID_DISSOLVE_MS = 1_000
 private const val FRAME_DISSOLVE_MS = 1_100
