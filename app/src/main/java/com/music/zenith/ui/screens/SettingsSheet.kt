@@ -183,6 +183,7 @@ import com.music.zenith.playback.AudioCache
 import com.music.zenith.ui.player.fullBleedArtworkAvailable
 import androidx.compose.runtime.produceState
 import com.music.zenith.data.canvas.CanvasCache
+import com.music.zenith.data.canvas.CanvasProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -4371,7 +4372,9 @@ fun SettingsChoicePage(
                     SettingsRow(
                         icon = SfIcons.Reorder,
                         title = stringResource(R.string.canvas_provider_order),
-                        subtitle = canvasOrder.joinToString(" › ") { it.label },
+                        subtitle = canvasOrder
+                            .filter { it != CanvasProvider.VIVI }
+                            .joinToString(" › ") { it.label },
                         enabled = animatedCanvas,
                         trailing = { Chevron() },
                         onClick = onCanvasProviders,
