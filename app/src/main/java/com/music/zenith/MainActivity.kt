@@ -179,6 +179,9 @@ import com.music.zenith.ui.components.SpotifyImportAlert
 import com.music.zenith.ui.screens.AccountAndScrobblingScreen
 import com.music.zenith.ui.screens.DiscordDialog
 import com.music.zenith.ui.screens.DiscordDialogHost
+import com.music.zenith.ui.screens.AiTranslateDialog
+import com.music.zenith.ui.screens.AiTranslateDialogHost
+import com.music.zenith.ui.screens.AiTranslateScreen
 import com.music.zenith.ui.screens.DiscordScreen
 import com.music.zenith.ui.screens.EqualizerScreen
 import com.music.zenith.ui.screens.HistoryScreen
@@ -893,6 +896,7 @@ private fun ZenithApp(
     var showDiscordLogin by remember { mutableStateOf(false) }
     var showSpotifyLogin by remember { mutableStateOf(false) }
     var discordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
+    var aiTranslateDialog by remember { mutableStateOf<AiTranslateDialog?>(null) }
     var songActions by remember { mutableStateOf<Song?>(null) }
     // Song Info hidup di luar menu supaya menu bisa menutup di belakangnya.
     var songInfoTarget by remember { mutableStateOf<Song?>(null) }
@@ -3269,6 +3273,7 @@ private fun ZenithApp(
         BackHandler(enabled = showListenBrainzLogin) { showListenBrainzLogin = false }
         BackHandler(enabled = showLastfmLogin) { showLastfmLogin = false }
         BackHandler(enabled = discordDialog != null) { discordDialog = null }
+        BackHandler(enabled = aiTranslateDialog != null) { aiTranslateDialog = null }
         BackHandler(enabled = editingSource != null) { editingSource = null }
         BackHandler(enabled = editingPartyServer) { editingPartyServer = false }
         BackHandler(enabled = editingSignatureApi) { editingSignatureApi = false }
@@ -3549,6 +3554,11 @@ private fun ZenithApp(
                                 onOpenTokenSetup = { showSpotifyCanvasAuth = true },
                                 contentPadding = listPadding,
                             )
+                        } else if (pageRoute == AppRoute.AiTranslate) {
+                            AiTranslateScreen(
+                                onOpenDialog = { aiTranslateDialog = it },
+                                contentPadding = listPadding,
+                            )
                         } else if (pageRoute == AppRoute.Discord) {
                             DiscordScreen(
                                 song = player.song,
@@ -3653,6 +3663,7 @@ private fun ZenithApp(
                                 },
                                 onLyricsSources = { showLyricsSources = true },
                                 onTranslationLanguage = { showTranslationLanguage = true },
+                                onAiTranslate = { navigator.push(AppRoute.AiTranslate) },
                                 onSources = { navigator.push(AppRoute.Sources) },
                                 onListenTogether = { navigator.push(AppRoute.ListenTogether) },
                                 onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
@@ -4503,6 +4514,7 @@ private fun ZenithApp(
                         AppRoute.Spotify -> stringResource(R.string.spotify)
                         AppRoute.Downloads -> stringResource(R.string.downloads)
                         AppRoute.Discord -> "Discord"
+                        AppRoute.AiTranslate -> stringResource(R.string.ai_translate)
                         AppRoute.History -> stringResource(R.string.history)
                         is AppRoute.LibraryShowAll -> route.shelf.title
                         is AppRoute.ArtistShelf -> route.shelf.title
@@ -4544,6 +4556,7 @@ private fun ZenithApp(
                                 com.music.zenith.ui.screens.settingsChoiceBarTitle(route.choice)
                             AppRoute.AccountScrobbling -> stringResource(R.string.bar_title_account)
                             AppRoute.Discord -> stringResource(R.string.discord)
+                            AppRoute.AiTranslate -> stringResource(R.string.ai_translate)
                             AppRoute.Equalizer -> stringResource(R.string.equalizer)
                             AppRoute.EqualizerPresets -> stringResource(R.string.equalizer_preset)
                             AppRoute.ListenTogether -> stringResource(R.string.listen_together)
@@ -7138,6 +7151,14 @@ private fun ZenithApp(
             BackHandler { showSpotifyCanvasAuth = false }
             SpotifyCanvasAuthScreen(
                 onNavigateUp = { showSpotifyCanvasAuth = false }
+            )
+        }
+
+        aiTranslateDialog?.let { which ->
+            AiTranslateDialogHost(
+                which = which,
+                hazeState = hazeState,
+                onDismiss = { aiTranslateDialog = null },
             )
         }
 

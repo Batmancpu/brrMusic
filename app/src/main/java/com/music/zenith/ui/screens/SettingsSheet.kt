@@ -213,6 +213,7 @@ fun SettingsScreen(
     onOpenReplay: () -> Unit,
     onLyricsSources: () -> Unit,
     onTranslationLanguage: () -> Unit,
+    onAiTranslate: () -> Unit,
     onSources: () -> Unit,
     onListenTogether: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
@@ -2002,6 +2003,16 @@ fun SettingsScreen(
                         },
                         trailing = { Chevron() },
                         onClick = onTranslationLanguage,
+                    )
+                }
+                val aiTranslateTitle = stringResource(R.string.ai_translate)
+                row(aiTranslateTitle, "lyrics", "translate", "ai", "gemini", "groq", "openrouter") {
+                    SettingsRow(
+                        icon = SfIcons.AutoAwesome,
+                        title = aiTranslateTitle,
+                        subtitle = stringResource(R.string.ai_translate_subtitle),
+                        trailing = { Chevron() },
+                        onClick = onAiTranslate,
                     )
                 }
             }
